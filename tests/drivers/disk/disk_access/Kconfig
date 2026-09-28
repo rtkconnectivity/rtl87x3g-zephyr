@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2022 NXP
+
+mainmenu "Disk driver access test"
+
+config MAIN_STACK_SIZE
+	default 1280 if (MMC_STACK && IMX_USDHC)
+
+config DISK_ACCESS_STRESS
+	bool "Endless read/write stress test"
+	help
+	  Add a non-terminating read/write/verify stress test item that keeps
+	  running on errors instead of aborting, to continuously exercise the
+	  disk driver (and its error-recovery path) on real hardware.
+
+config DISK_ACCESS_TEST_ERASE
+	bool "Erase test items (test_erase / test_erase_full)"
+	help
+	  Add the Realtek-specific erase test items that verify a physical erase
+	  actually happened. Destructive and hardware-specific, so off by default:
+	  a plain "west build" then runs only the native Zephyr test items.
+
+config DISK_ACCESS_TEST_POWER_CYCLE
+	bool "Power-cycle test item (test_power_cycle)"
+	help
+	  Add the Realtek-specific power-cycle test item that toggles the disk
+	  through CTRL_DEINIT/CTRL_INIT many times. Hardware-specific, so off by
+	  default: a plain "west build" then runs only the native Zephyr test
+	  items.
+
+config DISK_ACCESS_TEST_FS_FORMAT
+	bool "FatFs format test item (test_fs_format)"
+	select FILE_SYSTEM
+	select FAT_FILESYSTEM_ELM
+	select FILE_SYSTEM_MKFS
+	select FS_FATFS_USE_TRIM
+	help
+	  Add the Realtek-specific FatFs format test item that formats the eMMC
+	  with fs_mkfs(), mounts it, writes and reads back a file, then unmounts.
+	  Destructive and hardware-specific, so off by default: a plain
+	  "west build" then runs only the native Zephyr test items.
+
+source "Kconfig.zephyr"

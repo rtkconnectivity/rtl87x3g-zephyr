@@ -1,0 +1,17 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+config SOC_SERIES_RTL8762J
+	bool
+	select SOC_FAMILY_REALTEK_BEE
+	help
+	  Enable support for Realtek RTL8762J series
+
+config SOC_RTL8762JX
+	bool
+	select SOC_SERIES_RTL8762J
+
+config SOC
+	default "rtl8762jx" if SOC_RTL8762JX
+
+config SOC_PART_NUMBER_RTL8762JX
+	bool

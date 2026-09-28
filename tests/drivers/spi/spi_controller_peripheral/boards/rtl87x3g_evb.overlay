@@ -1,0 +1,97 @@
+/*
+ * Copyright(c) 2025, Realtek Semiconductor Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/dma/rtl87x3g-dma.h>
+
+&spi1 {
+	status = "okay";
+	pinctrl-0 = <&spi1_default>;
+	pinctrl-names = "default";
+	cs-gpios = <&gpiob 12 GPIO_ACTIVE_LOW>;
+/* dma is optional
+	dmas =  <&dma0 0 RTL87X3G_DMA_HANDSHAKE_SPI1_TX
+		  (RTL87X3G_DMA_M2P
+		   | RTL87X3G_DMA_SRC_INC
+		   | RTL87X3G_DMA_DST_FIXED
+		   | RTL87X3G_DMA_SRC_WIDTH_8BIT
+		   | RTL87X3G_DMA_DST_WIDTH_8BIT
+		   | RTL87X3G_DMA_SRC_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_DST_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_PRIORITY(1))>,
+		<&dma0 1 RTL87X3G_DMA_HANDSHAKE_SPI1_RX
+		  (RTL87X3G_DMA_P2M
+		   | RTL87X3G_DMA_SRC_FIXED
+		   | RTL87X3G_DMA_DST_INC
+		   | RTL87X3G_DMA_SRC_WIDTH_8BIT
+		   | RTL87X3G_DMA_DST_WIDTH_8BIT
+		   | RTL87X3G_DMA_SRC_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_DST_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_PRIORITY(0))>;
+	dma-names = "tx", "rx";
+*/
+	dut_spi_dt: test-spi-dev@0 {
+		compatible = "vnd,spi-device";
+		reg = <0>;
+		spi-max-frequency = <1000000>;
+	};
+};
+
+dut_spis: &spi0_slave {
+	status = "okay";
+/* dma is optional
+	dmas =  <&dma0 2 RTL87X3G_DMA_HANDSHAKE_SPI_SLAVE_TX
+		  (RTL87X3G_DMA_M2P
+		   | RTL87X3G_DMA_SRC_INC
+		   | RTL87X3G_DMA_DST_FIXED
+		   | RTL87X3G_DMA_SRC_WIDTH_8BIT
+		   | RTL87X3G_DMA_DST_WIDTH_8BIT
+		   | RTL87X3G_DMA_SRC_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_DST_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_PRIORITY(1))>,
+		<&dma0 3 RTL87X3G_DMA_HANDSHAKE_SPI_SLAVE_RX
+		  (RTL87X3G_DMA_P2M
+		   | RTL87X3G_DMA_SRC_FIXED
+		   | RTL87X3G_DMA_DST_INC
+		   | RTL87X3G_DMA_SRC_WIDTH_8BIT
+		   | RTL87X3G_DMA_DST_WIDTH_8BIT
+		   | RTL87X3G_DMA_SRC_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_DST_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_PRIORITY(0))>;
+	dma-names = "tx", "rx";
+*/
+	pinctrl-0 = <&spi0_slave_default>;
+	pinctrl-names = "default";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+/* dma is optional
+&dma0 {
+	status = "okay";
+};
+*/
+
+&pinctrl {
+	spi1_default: spi1_default {
+		group1 {
+			psels = <RTL87X3G_PSEL(SPI1_CLK_MASTER, P4_2, DIR_IN, DRV_LOW, PULL_NONE)>,
+			<RTL87X3G_PSEL(SPI1_MI_MASTER, P4_3, DIR_IN, DRV_LOW, PULL_NONE)>,
+			<RTL87X3G_PSEL(SPI1_MO_MASTER, P4_4, DIR_IN, DRV_LOW, PULL_NONE)>;
+		};
+	};
+
+	spi0_slave_default: spi0_slave_default {
+		group1 {
+			psels = <RTL87X3G_PSEL(SPI_CLK_SLAVE, ADC_0, DIR_IN, DRV_LOW, PULL_NONE)>,
+			<RTL87X3G_PSEL(SPI_SO_SLAVE, ADC_1, DIR_IN, DRV_LOW, PULL_NONE)>,
+			<RTL87X3G_PSEL(SPI_SI_SLAVE, ADC_2, DIR_IN, DRV_LOW, PULL_NONE)>,
+			<RTL87X3G_PSEL(SPI_SS_N_0_SLAVE, ADC_3, DIR_IN, DRV_HIGH, PULL_UP)>;
+		};
+	};
+
+};

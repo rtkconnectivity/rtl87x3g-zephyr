@@ -1,0 +1,15 @@
+#
+# Copyright (c) 2026, Realtek Semiconductor Corporation
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+config FLASH_RTL87X3G_NAND
+	bool "Enable Realtek RTL87X3G NAND Flash Driver"
+	default y
+	depends on DT_HAS_REALTEK_RTL87X3G_NAND_FLASH_CONTROLLER_ENABLED
+	select FLASH_HAS_DRIVER_ENABLED
+	select FLASH_HAS_PAGE_LAYOUT
+	select FLASH_HAS_EXPLICIT_ERASE
+	help
+	  Enable Realtek RTL87X3G NAND Flash Driver.

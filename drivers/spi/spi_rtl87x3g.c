@@ -1,0 +1,972 @@
+﻿/*
+ * Copyright(c) 2025, Realtek Semiconductor Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+#define DT_DRV_COMPAT realtek_rtl87x3g_spi
+
+#include <zephyr/drivers/spi.h>
+#include <zephyr/drivers/pinctrl.h>
+#include <zephyr/drivers/pinctrl/rtl87x3g_pinctrl.h>
+#include <soc.h>
+#include <zephyr/drivers/clock_control.h>
+#include <zephyr/drivers/clock_control/rtl87x3g_clock_control.h>
+#ifdef CONFIG_SPI_RTL87X3G_DMA
+#include <zephyr/drivers/dma.h>
+#include <zephyr/drivers/dma/dma_rtl87x3g.h>
+#endif
+#include <zephyr/irq.h>
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/policy.h>
+
+#if defined(CONFIG_SOC_SERIES_RTL87X3G)
+#include <rtl876x_spi.h>
+#include <rtl876x_rcc.h>
+#endif
+
+#include <zephyr/logging/log.h>
+LOG_MODULE_REGISTER(spi_rtl87x3g, CONFIG_SPI_LOG_LEVEL);
+#include "spi_context.h"
+
+#include "clock.h"
+#include "trace.h"
+
+#ifdef CONFIG_SPI_RTL87X3G_DMA
+
+struct spi_rtl87x3g_dma_data {
+	struct dma_config config;
+	struct dma_block_config block;
+	uint32_t count;
+};
+
+struct spi_dma_stream {
+	const struct device *dma_dev;
+	uint32_t dma_channel;
+	struct dma_config dma_cfg;
+	uint8_t priority;
+	uint8_t src_addr_increment;
+	uint8_t dst_addr_increment;
+	int fifo_threshold;
+	struct dma_block_config blk_cfg;
+	uint8_t *buffer;
+	size_t buffer_length;
+	size_t offset;
+	volatile size_t counter;
+	int32_t timeout;
+	struct k_work_delayable timeout_work;
+	bool enabled;
+	uint8_t *dma_tmp_buf;
+};
+
+#endif
+
+#ifdef CONFIG_PM_DEVICE
+#if defined(CONFIG_SOC_SERIES_RTL87X3G)
+typedef struct {
+	uint32_t spi_reg[14];
+} SPIStoreReg_Typedef;
+#endif
+#endif
+
+struct spi_rtl87x3g_data {
+	struct spi_context ctx;
+	const struct device *dev;
+	bool initialized;
+	bool bus_off;
+	uint32_t datasize;
+	uint32_t bus_freq;
+#ifdef CONFIG_SPI_RTL87X3G_DMA
+	struct spi_dma_stream dma_rx;
+	struct spi_dma_stream dma_tx;
+	struct spi_rtl87x3g_dma_data dma_rx_data;
+	struct spi_rtl87x3g_dma_data dma_tx_data;
+#endif
+#ifdef CONFIG_PM_DEVICE
+	SPIStoreReg_Typedef store_buf;
+#endif
+};
+
+struct spi_rtl87x3g_config {
+	uint32_t reg;
+	uint16_t clkid;
+	const struct pinctrl_dev_config *pcfg;
+	uint32_t rx_sample_delay;
+	const bool is_slave;
+	uint32_t max_frequency;
+#ifdef CONFIG_SPI_RTL87X3G_INTERRUPT
+	void (*irq_configure)();
+#endif
+};
+
+static uint32_t spi_rtl87x3g_get_tx_fifo_size(const struct spi_rtl87x3g_config *cfg)
+{
+	return (cfg->is_slave ? SPI_SLAVE_TX_FIFO_SIZE :
+		((cfg->reg == (uint32_t)SPI1) || (cfg->reg == (uint32_t)SPI1_HS)) ?
+		SPI1_TX_FIFO_SIZE : SPI_TX_FIFO_SIZE);
+}
+
+static uint32_t spi_rtl87x3g_get_rx_fifo_size(const struct spi_rtl87x3g_config *cfg)
+{
+	return (cfg->is_slave ? SPI_SLAVE_RX_FIFO_SIZE :
+		((cfg->reg == (uint32_t)SPI1) || (cfg->reg == (uint32_t)SPI1_HS)) ?
+		SPI1_RX_FIFO_SIZE : SPI_RX_FIFO_SIZE);
+}
+
+static bool spi_rtl87x3g_tx_fifo_not_full(const struct spi_rtl87x3g_config *cfg)
+{
+	return SPI_GetTxFIFOLen((SPI_TypeDef *)cfg->reg) < spi_rtl87x3g_get_tx_fifo_size(cfg);
+}
+
+static bool spi_rtl87x3g_rx_fifo_not_full(const struct spi_rtl87x3g_config *cfg)
+{
+	return SPI_GetRxFIFOLen((SPI_TypeDef *)cfg->reg) +
+		       SPI_GetTxFIFOLen((SPI_TypeDef *)cfg->reg) <
+	       spi_rtl87x3g_get_rx_fifo_size(cfg);
+}
+
+static bool spi_rtl87x3g_rx_fifo_empty(const struct spi_rtl87x3g_config *cfg)
+{
+	return SPI_GetRxFIFOLen((SPI_TypeDef *)cfg->reg) == 0;
+}
+
+static bool spi_rtl87x3g_context_ongoing(const struct device *dev)
+{
+	struct spi_rtl87x3g_data *data = dev->data;
+
+	return spi_context_tx_on(&data->ctx) || spi_context_rx_on(&data->ctx);
+}
+
+static bool spi_rtl87x3g_hw_ongoing(const struct device *dev)
+{
+	const struct spi_rtl87x3g_config *config = dev->config;
+
+	return !SPI_GetFlagState((SPI_TypeDef *)config->reg, SPI_FLAG_TFE) ||
+	       ((!config->is_slave) && SPI_GetFlagState((SPI_TypeDef *)config->reg, SPI_FLAG_BUSY));
+}
+
+static bool spi_rtl87x3g_transfer_ongoing(const struct device *dev)
+{
+	return spi_rtl87x3g_context_ongoing(dev) || spi_rtl87x3g_hw_ongoing(dev);
+}
+
+static void spi_rtl87x3g_set_hs_clock(const struct device *dev)
+{
+	const struct spi_rtl87x3g_config *config = dev->config;
+	struct spi_rtl87x3g_data *data = dev->data;
+
+	if (config->reg == (uint32_t)SPI1_HS) {
+
+		/* If choose pll as spi1 clock source, enable pll1 in 200M, div2 100MHz*/
+		clk_register_pre_hook(CLOCK_SPI1_MASTER, 200);
+		SPI_ClkSourceSwitch(SPI1, SPI_CLOCK_SOURCE_PLL1);
+		SPI_ClkDivConfig(SPI1, SPI_CLOCK_DIVIDER_2);
+		clk_register_post_hook(CLOCK_SPI1_MASTER, 200, &data->bus_freq);
+		data->bus_freq = data->bus_freq / 2 * 1000000;
+		LOG_INF("%s src freq %d", dev->name, data->bus_freq);
+	}
+}
+
+static void spi_rtl87x3g_set_ls_clock(const struct device *dev)
+{
+	const struct spi_rtl87x3g_config *config = dev->config;
+	struct spi_rtl87x3g_data *data = dev->data;
+
+	if (config->reg == (uint32_t)SPI1_HS) {
+		clk_register_pre_hook(CLOCK_SPI1_MASTER, 40);
+		SPI_ClkSourceSwitch(SPI1, SPI_CLOCK_SOURCE_40M);
+		SPI_ClkDivConfig(SPI1, SPI_CLOCK_DIVIDER_1);
+		clk_register_post_hook(CLOCK_SPI1_MASTER, 40, &data->bus_freq);
+		data->bus_freq = data->bus_freq * 1000000;
+		LOG_INF("%s src freq %d", dev->name, data->bus_freq);
+	}
+}
+
+static int spi_rtl87x3g_get_err(const struct spi_rtl87x3g_config *cfg)
+{
+	SPI_TypeDef *spi = (SPI_TypeDef *)cfg->reg;
+
+	if (SPI_GetFlagState(spi, SPI_FLAG_DCOL)) {
+		LOG_ERR("spi%p Data Collision Error status detected", spi);
+
+		return -EIO;
+	}
+
+	return 0;
+}
+
+static int spi_rtl87x3g_frame_exchange(const struct device *dev)
+{
+	struct spi_rtl87x3g_data *data = dev->data;
+	const struct spi_rtl87x3g_config *dev_config = dev->config;
+	SPI_TypeDef *spi = (SPI_TypeDef *)dev_config->reg;
+	struct spi_context *ctx = &data->ctx;
+	uint32_t datalen = data->datasize;
+	int dfs = ((datalen - 1) >> 3) + 1;
+	uint16_t tx_frame = 0U, rx_frame = 0U;
+
+	while (spi_rtl87x3g_tx_fifo_not_full(dev_config) &&
+	       spi_rtl87x3g_rx_fifo_not_full(dev_config)) {
+		if (ctx->tx_len) {
+			if (datalen <= 8) {
+				tx_frame = ctx->tx_buf ? *(uint8_t *)(data->ctx.tx_buf) : 0;
+			} else if (datalen <= 16) {
+				tx_frame = ctx->tx_buf ? *(uint16_t *)(data->ctx.tx_buf) : 0;
+			} else if (datalen <= 32) {
+				tx_frame = ctx->tx_buf ? *(uint32_t *)(data->ctx.tx_buf) : 0;
+			}
+
+			SPI_SendData(spi, tx_frame);
+
+			spi_context_update_tx(ctx, dfs, 1);
+		} else if (SPI_GetTxFIFOLen(spi) + SPI_GetRxFIFOLen(spi) < ctx->rx_len) {
+			SPI_SendData(spi, 0);
+		} else {
+			break;
+		}
+	}
+
+	while (!spi_rtl87x3g_rx_fifo_empty(dev_config)) {
+		rx_frame = SPI_ReceiveData(spi);
+		if (spi_context_rx_buf_on(ctx)) {
+			if (datalen <= 8) {
+				*(uint8_t *)data->ctx.rx_buf = rx_frame;
+			} else if (datalen <= 16) {
+				*(uint16_t *)data->ctx.rx_buf = rx_frame;
+			} else if (datalen <= 32) {
+				*(uint32_t *)data->ctx.rx_buf = rx_frame;
+			}
+		}
+		spi_context_update_rx(ctx, dfs, MIN(ctx->rx_len, 1));
+	}
+
+	return spi_rtl87x3g_get_err(dev_config);
+}
+
+#ifdef CONFIG_SPI_RTL87X3G_INTERRUPT
+static void spi_rtl87x3g_complete(const struct device *dev, int status)
+{
+	struct spi_rtl87x3g_data *dev_data = dev->data;
+	const struct spi_rtl87x3g_config *dev_config = dev->config;
+	SPI_TypeDef *spi = (SPI_TypeDef *)dev_config->reg;
+
+	SPI_INTConfig(spi, SPI_INT_TXE | SPI_INT_RXF, DISABLE);
+
+#ifdef CONFIG_SPI_RTL87X3G_DMA
+	if (dev_data->dma_rx.dma_dev && dev_data->dma_tx.dma_dev) {
+		dma_stop(dev_data->dma_tx.dma_dev, dev_data->dma_tx.dma_channel);
+		dma_stop(dev_data->dma_rx.dma_dev, dev_data->dma_rx.dma_channel);
+
+		if (dev_data->dma_tx.dma_tmp_buf) {
+			k_free(dev_data->dma_tx.dma_tmp_buf);
+			dev_data->dma_tx.dma_tmp_buf = NULL;
+		}
+
+		if (dev_data->dma_rx.dma_tmp_buf) {
+			k_free(dev_data->dma_rx.dma_tmp_buf);
+			dev_data->dma_rx.dma_tmp_buf = NULL;
+		}
+	}
+#endif
+	spi_context_complete(&dev_data->ctx, dev, status);
+
+	if (!dev_config->is_slave) {
+		spi_context_cs_control(&dev_data->ctx, false);
+	}
+
+	SPI_Cmd(spi, DISABLE);
+
+	spi_context_release(&dev_data->ctx, status);
+}
+
+static void spi_rtl87x3g_isr(struct device *dev)
+{
+	const struct spi_rtl87x3g_config *cfg = dev->config;
+	int err = 0;
+
+	err = spi_rtl87x3g_get_err(cfg);
+	if (err) {
+		spi_rtl87x3g_complete(dev, err);
+		return;
+	}
+
+	if (spi_rtl87x3g_transfer_ongoing(dev)) {
+		err = spi_rtl87x3g_frame_exchange(dev);
+	}
+
+	if (err || !spi_rtl87x3g_transfer_ongoing(dev)) {
+		spi_rtl87x3g_complete(dev, err);
+	}
+}
+
+#endif /* CONFIG_SPI_RTL87X3G_INTERRUPT */
+
+#ifdef CONFIG_SPI_RTL87X3G_DMA
+static int spi_rtl87x3g_start_dma_transceive(const struct device *dev)
+{
+	const struct spi_rtl87x3g_config *cfg = dev->config;
+	struct spi_rtl87x3g_data *data = dev->data;
+	const size_t chunk_len = spi_context_max_continuous_chunk(&data->ctx);
+	SPI_TypeDef *spi = (SPI_TypeDef *)cfg->reg;
+	struct dma_status status;
+	int ret = 0;
+
+	if (data->dma_tx.dma_tmp_buf) {
+		k_free(data->dma_tx.dma_tmp_buf);
+		data->dma_tx.dma_tmp_buf = NULL;
+	}
+
+	if (data->dma_rx.dma_tmp_buf) {
+		k_free(data->dma_rx.dma_tmp_buf);
+		data->dma_rx.dma_tmp_buf = NULL;
+	}
+
+	if (!(uint32_t)data->ctx.rx_buf) {
+		data->dma_rx.dma_tmp_buf = k_malloc(chunk_len);
+
+		if (!data->dma_rx.dma_tmp_buf) {
+			LOG_ERR("spi rx dma malloc fail");
+			return -ENOMEM;
+		}
+
+		memset(data->dma_rx.dma_tmp_buf, 0, chunk_len);
+	}
+
+	if (!(uint32_t)data->ctx.tx_buf) {
+		data->dma_tx.dma_tmp_buf = k_malloc(chunk_len);
+
+		if (!data->dma_tx.dma_tmp_buf) {
+			LOG_ERR("spi tx dma malloc fail");
+			return -ENOMEM;
+		}
+
+		memset(data->dma_tx.dma_tmp_buf, 0, chunk_len);
+	}
+
+	dma_get_status(data->dma_rx.dma_dev, data->dma_rx.dma_channel, &status);
+	if (chunk_len != data->dma_rx.counter && !status.busy) {
+		data->dma_rx.blk_cfg.dest_address = data->ctx.rx_buf
+							    ? (uint32_t)data->ctx.rx_buf
+							    : (uint32_t)data->dma_rx.dma_tmp_buf;
+		data->dma_rx.blk_cfg.block_size = chunk_len;
+		ret = dma_config(data->dma_rx.dma_dev, data->dma_rx.dma_channel,
+				 &data->dma_rx.dma_cfg);
+		if (ret < 0) {
+			LOG_ERR("dma_config %p failed %d\n", data->dma_rx.dma_dev, ret);
+			goto on_error;
+		}
+		ret = dma_start(data->dma_rx.dma_dev, data->dma_rx.dma_channel);
+		if (ret < 0) {
+			LOG_ERR("dma_start %p failed %d\n", data->dma_rx.dma_dev, ret);
+			goto on_error;
+		}
+	}
+
+ 	if (chunk_len != data->dma_tx.counter) {
+		data->dma_tx.blk_cfg.source_address = data->ctx.tx_buf
+							      ? (uint32_t)data->ctx.tx_buf
+							      : (uint32_t)data->dma_tx.dma_tmp_buf;
+		data->dma_tx.blk_cfg.block_size = chunk_len;
+
+		dma_stop(data->dma_tx.dma_dev, data->dma_tx.dma_channel);
+		ret = dma_config(data->dma_tx.dma_dev, data->dma_tx.dma_channel,
+				 &data->dma_tx.dma_cfg);
+		if (ret < 0) {
+			LOG_ERR("dma_config %p failed %d\n", data->dma_tx.dma_dev, ret);
+			goto on_error;
+		}
+		ret = dma_start(data->dma_tx.dma_dev, data->dma_tx.dma_channel);
+		if (ret < 0) {
+			LOG_ERR("dma_start %p failed %d\n", data->dma_tx.dma_dev, ret);
+			goto on_error;
+		}
+	}
+
+	SPI_Cmd(spi, ENABLE);
+
+on_error:
+	if (ret < 0) {
+		dma_stop(data->dma_rx.dma_dev, data->dma_rx.dma_channel);
+		dma_stop(data->dma_tx.dma_dev, data->dma_tx.dma_channel);
+	}
+	return ret;
+}
+
+static bool spi_rtl87x3g_chunk_transfer_finished(const struct device *dev)
+{
+	struct spi_rtl87x3g_data *data = dev->data;
+	const size_t chunk_len = spi_context_max_continuous_chunk(&data->ctx);
+
+	return (MIN(data->dma_tx.counter, data->dma_rx.counter) >= chunk_len);
+}
+
+void spi_rtl87x3g_dma_rx_cb(const struct device *dev, void *user_data, uint32_t channel, int status)
+{
+	const struct device *dma_dev = (const struct device *)dev;
+	const struct device *spi_dev = (const struct device *)user_data;
+	struct spi_rtl87x3g_data *data = spi_dev->data;
+	const size_t chunk_len = spi_context_max_continuous_chunk(&data->ctx);
+	uint32_t datalen = data->datasize;
+	int dfs = ((datalen - 1) >> 3) + 1;
+	int err = 0;
+
+	if (status < 0) {
+		LOG_ERR("dma:%p ch:%d callback gets error: %d", dma_dev, channel, status);
+		spi_rtl87x3g_complete(spi_dev, status);
+		return;
+	}
+
+	data->dma_tx.counter += chunk_len;
+	data->dma_rx.counter += chunk_len;
+
+	if (spi_rtl87x3g_chunk_transfer_finished(spi_dev)) {
+		spi_context_update_tx(&data->ctx, dfs, MIN(data->ctx.tx_len, chunk_len));
+		spi_context_update_rx(&data->ctx, dfs, MIN(data->ctx.rx_len, chunk_len));
+		if (spi_rtl87x3g_context_ongoing(spi_dev)) {
+			/* Next chunk is available, reset the count and
+			 * continue processing
+			 */
+			data->dma_tx.counter = 0;
+			data->dma_rx.counter = 0;
+		} else {
+			/* All data is processed, complete the process */
+			spi_rtl87x3g_complete(spi_dev, 0);
+			return;
+		}
+	}
+
+	err = spi_rtl87x3g_start_dma_transceive(spi_dev);
+	if (err) {
+		spi_rtl87x3g_complete(spi_dev, err);
+	}
+}
+
+void spi_rtl87x3g_dma_tx_cb(const struct device *dev, void *user_data, uint32_t channel, int status)
+{
+}
+
+#endif /* CONFIG_SPI_RTL87X3G_DMA */
+
+static int spi_rtl87x3g_configure(const struct device *dev, const struct spi_config *spi_cfg)
+{
+	struct spi_rtl87x3g_data *data = dev->data;
+	const struct spi_rtl87x3g_config *config = dev->config;
+	SPI_TypeDef *spi = (SPI_TypeDef *)config->reg;
+	struct spi_context *ctx = &data->ctx;
+	SPI_InitTypeDef spi_init_struct;
+#ifdef CONFIG_SPI_RTL87X3G_DMA
+	int dma_datasize;
+#endif
+	if (data->initialized && spi_context_configured(ctx, spi_cfg)) {
+		/* Already configured. No need to do it again. */
+		return 0;
+	}
+
+	/* frequency == 0 is treated as bus off: park the pins in the
+	 * bus-off state and gate the peripheral clock.
+	 */
+	if (spi_cfg->frequency == 0 && SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_MASTER) {
+		if (!data->bus_off) {
+			/* Park the pins before gating the clock. Prefer the bus-off
+			 * state; if it is not declared, warn and fall back to the
+			 * sleep state (the pins were already in the default state
+			 * before bus-off, so re-applying default would be a no-op).
+			 * If neither state exists, fail without changing anything.
+			 */
+			int ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_BUS_OFF);
+
+			if (ret == -ENOENT) {
+				LOG_WRN("%s: no bus-off pinctrl state, parking pins in sleep state",
+					dev->name);
+				ret = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_SLEEP);
+			}
+			if (ret < 0) {
+				LOG_ERR("%s: no bus-off or sleep pinctrl state", dev->name);
+				return ret;
+			}
+
+			(void)clock_control_off(RTL87X3G_CLOCK_CONTROLLER,
+						(clock_control_subsys_t)&config->clkid);
+
+			spi_rtl87x3g_set_ls_clock(dev);
+		}
+
+		data->initialized = false;
+		data->bus_off = true;
+		ctx->config = spi_cfg;
+
+		return 0;
+	}
+
+	/* Coming back from bus off: restore the default pin state. */
+	if (data->bus_off) {
+		(void)pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
+		data->bus_off = false;
+	}
+
+	if (spi_cfg->frequency > config->max_frequency && !config->is_slave) {
+		LOG_ERR("freq(%d) unsupport. %s max freq is: %d", spi_cfg->frequency, dev->name, config->max_frequency);
+		return -EINVAL;
+	}
+
+	if (SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_MASTER && config->is_slave) {
+		LOG_ERR("Master mode is not supported on %s", dev->name);
+		return -EINVAL;
+	}
+
+	if (SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_SLAVE && !config->is_slave) {
+		LOG_ERR("Slave mode is not supported on %s", dev->name);
+		return -EINVAL;
+	}
+
+	if (spi_cfg->operation & SPI_MODE_LOOP) {
+		LOG_ERR("Loopback mode is not supported");
+		return -EINVAL;
+	}
+
+	if (spi_cfg->operation & SPI_TRANSFER_LSB) {
+		LOG_ERR("LSB mode is not supported");
+		return -EINVAL;
+	}
+
+	if (IS_ENABLED(CONFIG_SPI_EXTENDED_MODES) &&
+	    (spi_cfg->operation & SPI_LINES_MASK) != SPI_LINES_SINGLE) {
+		LOG_ERR("Only single line mode is supported");
+		return -EINVAL;
+	}
+
+	if (data->initialized) {
+		(void)clock_control_off(RTL87X3G_CLOCK_CONTROLLER, (clock_control_subsys_t)&config->clkid);
+		data->initialized = false;
+	}
+
+	if (spi_cfg->frequency > 20000000) {
+		spi_rtl87x3g_set_hs_clock(dev);
+	} else {
+		spi_rtl87x3g_set_ls_clock(dev);
+	}
+
+	(void)clock_control_on(RTL87X3G_CLOCK_CONTROLLER, (clock_control_subsys_t)&config->clkid);
+
+	SPI_StructInit(&spi_init_struct);
+
+	if (!config->is_slave) {
+		spi_init_struct.SPI_BaudRatePrescaler = data->bus_freq / spi_cfg->frequency;
+	}
+	LOG_DBG("bus_freq %d, frequency %d, SPI_BaudRatePrescaler %d\n",
+			data->bus_freq, spi_cfg->frequency, spi_init_struct.SPI_BaudRatePrescaler);
+	spi_init_struct.SPI_DataSize = SPI_WORD_SIZE_GET(spi_cfg->operation) - 1;
+	spi_init_struct.SPI_CPOL =
+		spi_cfg->operation & SPI_MODE_CPOL ? SPI_CPOL_High : SPI_CPOL_Low;
+	spi_init_struct.SPI_CPHA =
+		spi_cfg->operation & SPI_MODE_CPHA ? SPI_CPHA_2Edge : SPI_CPHA_1Edge;
+	spi_init_struct.SPI_TxThresholdLevel = 0;
+	spi_init_struct.SPI_RxThresholdLevel = 0;
+#ifdef CONFIG_SPI_RTL87X3G_DMA
+	dma_datasize = SPI_WORD_SIZE_GET(spi_cfg->operation) > 16
+			       ? 4
+			       : (SPI_WORD_SIZE_GET(spi_cfg->operation) > 8 ? 2 : 1);
+	if (data->dma_rx.dma_dev != NULL) {
+		spi_init_struct.SPI_RxDmaEn = ENABLE;
+		spi_init_struct.SPI_RxWaterlevel = data->dma_rx.dma_cfg.source_burst_length - 1;
+		data->dma_rx.dma_cfg.source_data_size = dma_datasize;
+		data->dma_rx.dma_cfg.dest_data_size = dma_datasize;
+	}
+
+	if (data->dma_tx.dma_dev != NULL) {
+		spi_init_struct.SPI_TxDmaEn = ENABLE;
+		spi_init_struct.SPI_TxWaterlevel = spi_rtl87x3g_get_tx_fifo_size(config) -
+			data->dma_tx.dma_cfg.dest_burst_length;
+		data->dma_tx.dma_cfg.source_data_size = dma_datasize;
+		data->dma_tx.dma_cfg.dest_data_size = dma_datasize;
+	}
+#endif
+	SPI_Init(spi, &spi_init_struct);
+
+	SPI_SetRxSampleDly(spi, config->rx_sample_delay);
+
+	data->datasize = SPI_WORD_SIZE_GET(spi_cfg->operation);
+	data->initialized = true;
+
+	ctx->config = spi_cfg;
+
+	return 0;
+}
+
+static int spi_rtl87x3g_transceive_impl(const struct device *dev, const struct spi_config *spi_cfg,
+					const struct spi_buf_set *tx_bufs,
+					const struct spi_buf_set *rx_bufs, bool asynchronous,
+					spi_callback_t cb, void *userdata)
+{
+	struct spi_rtl87x3g_data *data = dev->data;
+	const struct spi_rtl87x3g_config *config = dev->config;
+	SPI_TypeDef *spi = (SPI_TypeDef *)config->reg;
+	int ret;
+
+	spi_context_lock(&data->ctx, asynchronous, cb, userdata, spi_cfg);
+	ret = spi_rtl87x3g_configure(dev, spi_cfg);
+	if (ret < 0) {
+		goto error;
+	}
+
+	if (tx_bufs == NULL && rx_bufs == NULL) {
+		spi_context_release(&data->ctx, ret);
+		return 0;
+	}
+
+	if (spi_cfg->frequency == 0 && SPI_OP_MODE_GET(spi_cfg->operation) == SPI_OP_MODE_MASTER) {
+		/* Bus is off (clock gated); a data transfer cannot run. */
+		LOG_ERR("%s: cannot transfer with frequency 0 (bus off)", dev->name);
+		ret = -EINVAL;
+		goto error;
+	}
+
+	SPI_Cmd(spi, ENABLE);
+
+	spi_context_buffers_setup(&data->ctx, tx_bufs, rx_bufs, ((data->datasize - 1) >> 3) + 1);
+
+	if (!config->is_slave) {
+		spi_context_cs_control(&data->ctx, true);
+	}
+
+	if (!asynchronous) {
+#if !defined(CONFIG_SPI_ASYNC)
+		do {
+			ret = spi_rtl87x3g_frame_exchange(dev);
+			if (ret < 0) {
+				break;
+			}
+		} while (spi_rtl87x3g_transfer_ongoing(dev));
+
+#else /* defined(CONFIG_SPI_ASYNC) && defined(CONFIG_SPI_RTL87X3G_INTERRUPT) */
+#if defined(CONFIG_SPI_RTL87X3G_DMA)
+		if (data->dma_rx.dma_dev && data->dma_tx.dma_dev) {
+			data->dma_rx.counter = 0;
+			data->dma_tx.counter = 0;
+
+			ret = spi_rtl87x3g_start_dma_transceive(dev);
+			if (ret < 0) {
+				goto dma_error;
+			}
+
+		} else
+#endif
+		{
+			SPI_INTConfig(spi, SPI_INT_TXE | SPI_INT_RXF, ENABLE);
+		}
+
+		ret = spi_context_wait_for_completion(&data->ctx);
+		if (ret < 0) {
+			goto dma_error;
+		}
+
+		return ret;
+#endif
+
+#if defined(CONFIG_SPI_RTL87X3G_DMA)
+	dma_error:
+#endif
+
+		if (!config->is_slave) {
+			spi_context_cs_control(&data->ctx, false);
+		}
+
+		SPI_Cmd(spi, DISABLE);
+
+	error:
+		spi_context_release(&data->ctx, ret);
+
+		return ret;
+	} else {
+#if defined(CONFIG_SPI_RTL87X3G_DMA)
+		if (data->dma_rx.dma_dev && data->dma_tx.dma_dev) {
+			data->dma_rx.counter = 0;
+			data->dma_tx.counter = 0;
+
+			ret = spi_rtl87x3g_start_dma_transceive(dev);
+			if (ret < 0) {
+				goto dma_error;
+			}
+
+		} else
+#endif
+		{
+			SPI_INTConfig(spi, SPI_INT_TXE | SPI_INT_RXF, ENABLE);
+		}
+
+		return 0;
+	}
+}
+
+static int spi_rtl87x3g_transceive(const struct device *dev, const struct spi_config *spi_cfg,
+				   const struct spi_buf_set *tx_bufs,
+				   const struct spi_buf_set *rx_bufs)
+{
+	return spi_rtl87x3g_transceive_impl(dev, spi_cfg, tx_bufs, rx_bufs, false, NULL, NULL);
+}
+
+#ifdef CONFIG_SPI_ASYNC
+static int spi_rtl87x3g_transceive_async(const struct device *dev, const struct spi_config *spi_cfg,
+					 const struct spi_buf_set *tx_bufs,
+					 const struct spi_buf_set *rx_bufs, spi_callback_t cb,
+					 void *userdata)
+{
+	return spi_rtl87x3g_transceive_impl(dev, spi_cfg, tx_bufs, rx_bufs, true, cb, userdata);
+}
+#endif
+
+static int spi_rtl87x3g_release(const struct device *dev, const struct spi_config *config)
+{
+	struct spi_rtl87x3g_data *data = dev->data;
+	spi_context_unlock_unconditionally(&data->ctx);
+
+	return 0;
+}
+
+#ifdef CONFIG_PM_DEVICE
+static int spi_rtl87x3g_pm_action(const struct device *dev, enum pm_device_action action)
+{
+	struct spi_rtl87x3g_data *data = dev->data;
+	const struct spi_rtl87x3g_config *config = dev->config;
+	int err;
+
+	switch (action) {
+	case PM_DEVICE_ACTION_SUSPEND:
+		if (!data->bus_off) {
+			/* Move pins to sleep state */
+			err = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_SLEEP);
+			if ((err < 0) && (err != -ENOENT)) {
+				return err;
+			}
+		}
+		break;
+	case PM_DEVICE_ACTION_RESUME:
+		if (!data->bus_off) {
+			/* Set pins to active state */
+			err = pinctrl_apply_state(config->pcfg, PINCTRL_STATE_DEFAULT);
+			if (err < 0) {
+				return err;
+			}
+
+			if (data->initialized) {
+				data->initialized = false;
+				spi_rtl87x3g_configure(dev, data->ctx.config);
+			}
+		}
+
+		break;
+	default:
+		return -ENOTSUP;
+	}
+
+	return 0;
+}
+#endif /* CONFIG_PM_DEVICE */
+
+static const struct spi_driver_api spi_rtl87x3g_driver_api = {
+	.transceive = spi_rtl87x3g_transceive,
+#ifdef CONFIG_SPI_ASYNC
+	.transceive_async = spi_rtl87x3g_transceive_async,
+#endif
+	.release = spi_rtl87x3g_release,
+};
+
+#ifdef CONFIG_SPI_RTL87X3G_DMA
+static int spi_rtl87x3g_dma_init(const struct device *dev)
+{
+	struct spi_rtl87x3g_data *data = dev->data;
+	const struct spi_rtl87x3g_config *config = dev->config;
+	SPI_TypeDef *spi = (SPI_TypeDef *)config->reg;
+	int ret = 0;
+
+	if (data->dma_rx.dma_dev != NULL) {
+		if (!device_is_ready(data->dma_rx.dma_dev)) {
+			return -ENODEV;
+		}
+	}
+
+	if (data->dma_tx.dma_dev != NULL) {
+		if (!device_is_ready(data->dma_tx.dma_dev)) {
+			return -ENODEV;
+		}
+	}
+
+	/* Configure dma rx config */
+	memset(&data->dma_rx.blk_cfg, 0, sizeof(data->dma_rx.blk_cfg));
+
+	data->dma_rx.blk_cfg.source_address = (uint32_t)(&(spi->SPI_DR[0]));
+
+	/* dest not ready */
+	data->dma_rx.blk_cfg.dest_address = 0;
+	data->dma_rx.blk_cfg.source_addr_adj = data->dma_rx.src_addr_increment;
+	data->dma_rx.blk_cfg.dest_addr_adj = data->dma_rx.dst_addr_increment;
+
+	data->dma_rx.blk_cfg.source_reload_en = 0;
+	data->dma_rx.blk_cfg.dest_reload_en = 0;
+
+	data->dma_rx.dma_cfg.head_block = &data->dma_rx.blk_cfg;
+	data->dma_rx.dma_cfg.user_data = (void *)dev;
+
+	/* Configure dma tx config */
+	memset(&data->dma_tx.blk_cfg, 0, sizeof(data->dma_tx.blk_cfg));
+
+	data->dma_tx.blk_cfg.dest_address = (uint32_t)(&(spi->SPI_DR[0]));
+
+	data->dma_tx.blk_cfg.source_address = 0; /* not ready */
+
+	data->dma_tx.blk_cfg.source_addr_adj = data->dma_tx.src_addr_increment;
+
+	data->dma_tx.blk_cfg.dest_addr_adj = data->dma_tx.dst_addr_increment;
+
+	data->dma_tx.dma_cfg.head_block = &data->dma_tx.blk_cfg;
+	data->dma_tx.dma_cfg.user_data = (void *)dev;
+
+	ret = dma_config(data->dma_rx.dma_dev, data->dma_rx.dma_channel, &data->dma_rx.dma_cfg);
+	if (ret < 0) {
+		return ret;
+	}
+
+	ret = dma_config(data->dma_tx.dma_dev, data->dma_tx.dma_channel, &data->dma_tx.dma_cfg);
+	if (ret < 0) {
+		return ret;
+	}
+
+	return ret;
+}
+#endif
+
+static int spi_rtl87x3g_init(const struct device *dev)
+{
+	struct spi_rtl87x3g_data *data = dev->data;
+	const struct spi_rtl87x3g_config *cfg = dev->config;
+	int ret;
+
+	data->bus_freq = 40000000;
+
+	spi_rtl87x3g_set_ls_clock(dev);
+
+	ret = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_BUS_OFF);
+	if (ret < 0) {
+		ret = pinctrl_apply_state(cfg->pcfg, PINCTRL_STATE_DEFAULT);
+		if (ret < 0) {
+			LOG_ERR("Failed to configure spi pins");
+			return ret;
+		}
+	}
+	else {
+		data->bus_off = true;
+	}
+
+#ifdef CONFIG_SPI_RTL87X3G_DMA
+	if ((data->dma_rx.dma_dev && !data->dma_tx.dma_dev) ||
+	    (data->dma_tx.dma_dev && !data->dma_rx.dma_dev)) {
+		LOG_ERR("dma must be enabled for both tx and rx channels");
+		return -ENODEV;
+	}
+
+	if (data->dma_rx.dma_dev && data->dma_tx.dma_dev) {
+		ret = spi_rtl87x3g_dma_init(dev);
+		if (ret < 0) {
+			LOG_ERR("dma not ready");
+		}
+	}
+
+#endif
+
+	ret = spi_context_cs_configure_all(&data->ctx);
+	if (ret < 0) {
+		return ret;
+	}
+
+#ifdef CONFIG_SPI_RTL87X3G_INTERRUPT
+	cfg->irq_configure(dev);
+#endif
+
+	spi_context_unlock_unconditionally(&data->ctx);
+
+	return 0;
+}
+
+#define SPI_DMA_CHANNEL_INIT(index, dir)                                                           \
+	.dma_dev = DEVICE_DT_GET(RTL87X3G_DMA_CTLR(index, dir)),                                   \
+	.dma_channel = DT_INST_DMAS_CELL_BY_NAME(index, dir, channel),                             \
+	.dma_cfg =                                                                                 \
+		{                                                                                  \
+			.dma_slot = DT_INST_DMAS_CELL_BY_NAME(index, dir, slot),                   \
+			.channel_direction = RTL87X3G_DMA_CONFIG_DIRECTION(                        \
+				RTL87X3G_DMA_CHANNEL_CONFIG(index, dir)),                          \
+			.channel_priority = RTL87X3G_DMA_CONFIG_PRIORITY(                          \
+				RTL87X3G_DMA_CHANNEL_CONFIG(index, dir)),                          \
+			.source_data_size = RTL87X3G_DMA_CONFIG_SOURCE_DATA_SIZE(                  \
+				RTL87X3G_DMA_CHANNEL_CONFIG(index, dir)),                          \
+			.dest_data_size = RTL87X3G_DMA_CONFIG_DESTINATION_DATA_SIZE(               \
+				RTL87X3G_DMA_CHANNEL_CONFIG(index, dir)),                          \
+			.source_burst_length = RTL87X3G_DMA_CONFIG_SOURCE_MSIZE(                   \
+				RTL87X3G_DMA_CHANNEL_CONFIG(index, dir)),                          \
+			.dest_burst_length = RTL87X3G_DMA_CONFIG_DESTINATION_MSIZE(                \
+				RTL87X3G_DMA_CHANNEL_CONFIG(index, dir)),                          \
+			.block_count = 1,                                                          \
+			.dma_callback = spi_rtl87x3g_dma_##dir##_cb,                               \
+	},                                                                                         \
+	.src_addr_increment =                                                                      \
+		RTL87X3G_DMA_CONFIG_SOURCE_ADDR_INC(RTL87X3G_DMA_CHANNEL_CONFIG(index, dir)),      \
+	.dst_addr_increment =                                                                      \
+		RTL87X3G_DMA_CONFIG_DESTINATION_ADDR_INC(RTL87X3G_DMA_CHANNEL_CONFIG(index, dir)),
+
+#if defined(CONFIG_SPI_RTL87X3G_DMA)
+#define SPI_DMA_CHANNEL(index, dir)                                                                \
+	.dma_##dir = {COND_CODE_1(DT_INST_DMAS_HAS_NAME(index, dir),                               \
+				  (SPI_DMA_CHANNEL_INIT(index, dir)), (NULL))},
+#else
+#define SPI_DMA_CHANNEL(index, dir)
+#endif
+
+#define SPI_RTL87X3G_IRQ_CONFIGURE(index)                                                          \
+	static void spi_rtl87x3g_irq_configure_##index(void)                                       \
+	{                                                                                          \
+		IRQ_CONNECT(DT_INST_IRQN(index), DT_INST_IRQ(index, priority), spi_rtl87x3g_isr,   \
+			    DEVICE_DT_INST_GET(index), 0);                                         \
+		irq_enable(DT_INST_IRQN(index));                                                   \
+	}
+
+#define RTL87X3G_SPI_INIT(index)                                                                   \
+	PINCTRL_DT_INST_DEFINE(index);                                                             \
+	IF_ENABLED(CONFIG_SPI_RTL87X3G_INTERRUPT, (SPI_RTL87X3G_IRQ_CONFIGURE(index)));            \
+	static struct spi_rtl87x3g_data spi_rtl87x3g_data_##index = {                              \
+		SPI_CONTEXT_INIT_LOCK(spi_rtl87x3g_data_##index, ctx),                             \
+		SPI_CONTEXT_INIT_SYNC(spi_rtl87x3g_data_##index, ctx),                             \
+		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(index), ctx).dev =                     \
+			DEVICE_DT_INST_GET(index),                                                 \
+		.initialized = false, SPI_DMA_CHANNEL(index, rx) SPI_DMA_CHANNEL(index, tx)};      \
+	static const struct spi_rtl87x3g_config spi_rtl87x3g_config_##index = {                    \
+		.reg = DT_INST_REG_ADDR(index),                                                    \
+		.clkid = DT_INST_CLOCKS_CELL(index, id),                                           \
+		.pcfg = PINCTRL_DT_INST_DEV_CONFIG_GET(index),                                     \
+		.rx_sample_delay = DT_INST_PROP_OR(index, rx_sample_delay, 0), \
+		.is_slave = DT_INST_PROP_OR(index, is_slave, false),                               \
+		.max_frequency = DT_INST_PROP_OR(index, max_bus_freq, 0),                               \
+		IF_ENABLED(CONFIG_SPI_RTL87X3G_INTERRUPT,                                          \
+			   (.irq_configure = spi_rtl87x3g_irq_configure_##index))};                \
+	PM_DEVICE_DT_INST_DEFINE(index, spi_rtl87x3g_pm_action);                                   \
+	DEVICE_DT_INST_DEFINE(index, &spi_rtl87x3g_init, PM_DEVICE_DT_INST_GET(index),             \
+			      &spi_rtl87x3g_data_##index, &spi_rtl87x3g_config_##index,            \
+			      POST_KERNEL, CONFIG_SPI_INIT_PRIORITY, &spi_rtl87x3g_driver_api);
+
+DT_INST_FOREACH_STATUS_OKAY(RTL87X3G_SPI_INIT)
+
+BUILD_ASSERT(DT_NODE_HAS_STATUS(DT_NODELABEL(spi0), okay) +
+			     DT_NODE_HAS_STATUS(DT_NODELABEL(spi0_slave), okay) <
+		     2,
+	     "Only one spi0 node(spi0 or spi0_slave) is supported");
+
+BUILD_ASSERT(DT_NODE_HAS_STATUS(DT_NODELABEL(spi1), okay) +
+			     DT_NODE_HAS_STATUS(DT_NODELABEL(spi1_hs), okay) <
+		     2,
+	     "Only one spi1 node(spi1 or spi1_hs) is supported");
+
+#ifdef CONFIG_SPI_SLAVE
+#define CONFIG_SPI_SLAVE_DEFINED 1
+#else
+#define CONFIG_SPI_SLAVE_DEFINED 0
+#endif
+BUILD_ASSERT(!(DT_NODE_HAS_STATUS(DT_NODELABEL(spi0_slave), okay) && !CONFIG_SPI_SLAVE_DEFINED),
+	     "CONFIG_SPI_SLAVE should be enabled if spi0_slave node is used");

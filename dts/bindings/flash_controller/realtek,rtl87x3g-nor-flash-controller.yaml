@@ -1,0 +1,5 @@
+description: RTL87x3G Series flash nor controller
+
+compatible: "realtek,rtl87x3g-nor-flash-controller"
+
+include: flash-controller.yaml

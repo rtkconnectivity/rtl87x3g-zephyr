@@ -1,0 +1,43 @@
+/ {
+	aliases {
+		sdhc0 = &sdhc1;
+	};
+};
+
+&sdhc1 {
+	pin-group = <0>;
+	bus-width = <4>;
+	max-bus-freq = <50000000>;
+	pwr-gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
+	int-gpios = <&gpioa 12 GPIO_ACTIVE_HIGH>;
+	pinctrl-0 = <&sdhc1_default>;
+	pinctrl-1 = <&sdhc1_int>;
+	pinctrl-names = "default", "interrupt";
+	status = "okay";
+};
+
+&pinctrl {
+	sdhc1_default: sdhc1_default {
+		group1 {
+			psels = <RTL87X3G_PSEL(HS_P1_2_SDH1_CLK, P1_2, DIR_IN, DRV_HIGH, PULL_UP)>,
+					<RTL87X3G_PSEL(HS_P1_3_SDH1_CMD, P1_3, DIR_IN, DRV_HIGH, PULL_UP)>,
+					<RTL87X3G_PSEL(HS_P1_4_SDH1_DATA0, P1_4, DIR_IN, DRV_HIGH, PULL_UP)>,
+					<RTL87X3G_PSEL(HS_P3_2_SDH1_DATA2, P3_2, DIR_IN, DRV_HIGH, PULL_UP)>,
+					<RTL87X3G_PSEL(HS_P3_3_SDH1_DATA3, P3_3, DIR_IN, DRV_HIGH, PULL_UP)>;
+			bias-pull-strong;
+			current-level = <1>;
+		};
+	};
+
+	sdhc1_int: sdhc1_int {
+		group1 {
+			psels = <RTL87X3G_PSEL(HS_P1_5_SDH1_DATA1, P1_5, DIR_IN, DRV_HIGH, PULL_UP)>;
+			bias-pull-strong;
+			current-level = <1>;
+		};
+	};
+};
+
+&gpioa {
+	status = "okay";
+};

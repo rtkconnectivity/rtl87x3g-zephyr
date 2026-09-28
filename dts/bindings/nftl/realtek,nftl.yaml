@@ -1,0 +1,18 @@
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Realtek FTL for nand flash
+
+
+compatible: "realtek,nftl"
+
+include: ["base.yaml"]
+
+properties:
+
+  size:
+    type: int
+    required: true
+    description: |
+      nftl size in bytes.
+

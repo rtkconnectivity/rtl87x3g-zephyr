@@ -1,0 +1,12 @@
+# RTL87X3G clock control configuration
+
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config CLOCK_CONTROL_RTL87X3G
+	bool "RTL87X3G clock control"
+	default y
+	depends on DT_HAS_REALTEK_RTL87X3G_CCTL_ENABLED
+	select USE_HAL_REALTEK_RCC
+	help
+	  Enable driver for RTL87X3G Reset Clock Unit (RCU).

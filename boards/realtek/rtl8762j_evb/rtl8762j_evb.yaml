@@ -1,0 +1,13 @@
+identifier: rtl8762j_evb
+name: Realtek rtl8762j evaluation board
+type: mcu
+arch: arm
+ram: 384
+flash: 1024
+toolchain:
+  - zephyr
+  - gnuarmemb
+supported:
+  - gpio
+  - uart
+vendor: realtek

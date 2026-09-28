@@ -1,0 +1,524 @@
+#include <mem.h>
+#include <arm/armv8.1-m.dtsi>
+#include <freq.h>
+#include <dt-bindings/pinctrl/rtl87x3g-pinctrl.h>
+#include <dt-bindings/clock/rtl87x3g-clocks.h>
+#include <zephyr/dt-bindings/dma/rtl87x3g-dma.h>
+#include <zephyr/dt-bindings/gpio/gpio.h>
+#include <zephyr/dt-bindings/pwm/pwm.h>
+#include <zephyr/dt-bindings/i2c/i2c.h>
+#include <zephyr/dt-bindings/adc/adc.h>
+
+/ {
+	chosen {
+		zephyr,entropy = &trng;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu: cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-m55";
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+		};
+	};
+
+	rom {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_rom: memory@0 {
+			device_type = "boot rom region";
+			reg = <0x0 DT_SIZE_K(220)>;
+		};
+
+		stack_rom: memory@37000 {
+			device_type = "stack rom region";
+			reg = <0x37000 DT_SIZE_K(516)>;
+		};
+	};
+
+	internal_ram {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		//b8000~c0c00
+		internal_itcm: memory@b8000 {
+			device_type = "internal itcm region";
+			reg = <0xB8000 DT_SIZE_K(35)>;
+		};
+		//20000000~2000b800
+		internal_dtcm: memory@20000000 {
+			device_type = "internal dtcm region";
+			reg = <0x20000000 DT_SIZE_K(46)>;
+		};
+	};
+
+	itcm {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		//c0c00~d8000
+		itcm: memory@c0c00 {
+			device_type = "itcm region";
+			compatible = "zephyr,memory-region", "arm,itcm";
+			zephyr,memory-region = "ITCM";
+			reg = <0xC0C00 DT_SIZE_K(50)>;
+		};
+		heap_itcm: memory@cd400 {
+			device_type = "heap itcm region";
+			reg = <0xCD400 DT_SIZE_K(43)>;
+		};
+	};
+
+	dtcm {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		//2000b800~20020000
+		dtcm: memory@2000b800 {
+			device_type = "dtcm region";
+			reg = <0x2000B800 DT_SIZE_K(60)>;
+		};
+		heap_dtcm: memory@2001a800 {
+			device_type = "heap dtcm region";
+			reg = <0x2001A800 DT_SIZE_K(22)>;
+		};
+	};
+
+	sram {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		//0x20020000 ~ 0x20048000
+		sram: memory@20020000 {
+			device_type = "sram region";
+			compatible = "zephyr,memory-region", "mmio-sram";
+			reg = <0x20020000 DT_SIZE_K(60)>;
+			zephyr,memory-region = "SRAM";
+		};
+		heap_sram: memory@2002f000 {
+			device_type = "heap sram region";
+			reg = <0x2002F000 DT_SIZE_K(100)>;
+		};
+	};
+
+	dsp_ram {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		dsp_share_ram: memory@20048000 {
+			compatible = "zephyr,memory-region";
+			device_type = "dsp_share_ram region";
+			zephyr,memory-region = "DSPRAM";
+			reg = <0x20048000 DT_SIZE_K(80)>;
+		};
+	};
+
+	buffer_ram {
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		lowstack_global: memory@20400000 {
+			device_type = "lowstack global region";
+			reg = <0x20400000 DT_SIZE_K(2)>;
+		};
+		heap_buffer_ram: memory@20400800 {
+			device_type = "heap buffer_ram region";
+			reg = <0x20400800 DT_SIZE_K(62)>;
+		};
+	};
+
+	soc {
+		fmc: flash-controller@40022000 {
+			compatible = "realtek,rtl87x3g-nor-flash-controller";
+			reg = <0x40022000 0x400>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			status = "okay";
+
+			flash: flash@70000000 {
+				compatible = "soc-nv-flash";
+				write-block-size = <1>;
+				erase-block-size = <4096>;
+			};
+		};
+
+		trace: memory@e0640000 {
+			compatible = "zephyr,memory-region";
+			reg = <0xE0640000 0x400000>;
+			zephyr,memory-region = "TRACE";
+		};
+
+		rcu: reset-clock-controller@40000200 {
+			compatible = "realtek,rtl87x3g-rcu";
+			reg = <0x40000200 0x400>;
+			status = "okay";
+
+			cctl: clock-controller {
+				compatible = "realtek,rtl87x3g-cctl";
+				#clock-cells = <1>;
+				status = "okay";
+			};
+		};
+
+		pinctrl: pin-controller@40000500 {
+			compatible = "realtek,rtl87x3g-pinctrl";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x40000500 0x864>;
+
+			gpioa: gpio@40001000 {
+				compatible = "realtek,rtl87x3g-gpio";
+				gpio-controller;
+				#gpio-cells = <2>;
+				reg = <0x40001000 0x64>;
+				clocks = <&cctl APB_CLK(GPIOA)>;
+				port = <0>;
+				interrupts = <18 0>, <19 0>, <20 0>, <21 0>, <22 0>, <23 0>;
+				status = "disabled";
+			};
+
+			gpiob: gpio@40004800 {
+				compatible = "realtek,rtl87x3g-gpio";
+				gpio-controller;
+				#gpio-cells = <2>;
+				reg = <0x40004800 0x64>;
+				clocks = <&cctl APB_CLK(GPIOB)>;
+				port = <1>;
+				interrupts = <37 0>, <38 0>, <39 0>, <40 0>;
+				status = "disabled";
+			};
+		};
+
+		uart0: serial@40011000 {
+			compatible = "realtek,rtl87x3g-uart";
+			reg = <0x40011000 0x60>;
+			clocks = <&cctl APB_CLK(UART0)>;
+			interrupts = <14 0>;
+			status = "disabled";
+		};
+
+		uart2: serial@40012400 {
+			compatible = "realtek,rtl87x3g-uart";
+			reg = <0x40012400 0x60>;
+			clocks = <&cctl APB_CLK(UART2)>;
+			interrupts = <16 0>;
+			status = "disabled";
+		};
+
+		uart3: serial@40012800 {
+			compatible = "realtek,rtl87x3g-uart";
+			reg = <0x40012800 0x60>;
+			clocks = <&cctl APB_CLK(UART3)>;
+			interrupts = <47 0>;
+			status = "disabled";
+		};
+
+		uart4: serial@40012c00 {
+			compatible = "realtek,rtl87x3g-uart";
+			reg = <0x40012c00 0x60>;
+			clocks = <&cctl APB_CLK(UART4)>;
+			interrupts = <48 0>;
+			status = "disabled";
+		};
+
+		uart5: serial@40024000 {
+			compatible = "realtek,rtl87x3g-uart";
+			reg = <0x40024000 0x60>;
+			clocks = <&cctl APB_CLK(UART5)>;
+			interrupts = <49 0>;
+			status = "disabled";
+		};
+
+		dma0: dma@400952c0 {
+			compatible = "realtek,rtl87x3g-dma";
+			reg = <0x400952c0 0x6c0>;
+			interrupts = <65 0>,
+			             <66 0>,
+			             <112 0>,
+			             <113 0>,
+			             <114 0>,
+			             <115 0>;
+			dma-channels = <6>;
+			clocks = <&cctl APB_CLK(GDMA)>;
+			dma-port = <0>;
+			#dma-cells = <3>;
+			status = "disabled";
+		};
+
+		sleep_led: sleep_led@40000600 {
+			compatible = "realtek,rtl87x3g-led";
+			reg = <0x40000600 0x88>;
+			status = "disabled";
+		};
+
+		timer4: timer@40025140 {
+			compatible = "realtek,rtl87x3g-timer";
+			reg = <0x40025140 0x50>;
+			interrupts = <54 0>;
+			channels = <0>;
+			clocks = <&cctl APB_CLK(TIMER1)>;
+			status = "disabled";
+			port = <1>;
+			channel = <4>;
+			case = <7>;
+
+			pwm4 {
+				compatible = "realtek,rtl87x3g-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer5: timer@40025190 {
+			compatible = "realtek,rtl87x3g-timer";
+			reg = <0x40025190 0x50>;
+			interrupts = <55 0>;
+			channels = <0>;
+			clocks = <&cctl APB_CLK(TIMER1)>;
+			status = "disabled";
+			port = <1>;
+			channel = <5>;
+			case = <7>;
+
+			pwm5 {
+				compatible = "realtek,rtl87x3g-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer6: timer@400251e0 {
+			compatible = "realtek,rtl87x3g-timer";
+			reg = <0x400251e0 0x50>;
+			interrupts = <71 0>;
+			channels = <0>;
+			clocks = <&cctl APB_CLK(TIMER1)>;
+			status = "disabled";
+			port = <1>;
+			channel = <6>;
+			case = <3>;
+			pwm6 {
+				compatible = "realtek,rtl87x3g-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer7: timer@40025230 {
+			compatible = "realtek,rtl87x3g-timer";
+			reg = <0x40025230 0x50>;
+			interrupts = <72 0>;
+			channels = <0>;
+			clocks = <&cctl APB_CLK(TIMER1)>;
+			status = "disabled";
+			port = <1>;
+			channel = <7>;
+			case = <3>;
+			pwm7 {
+				compatible = "realtek,rtl87x3g-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		timer8: timer@40025280 {
+			compatible = "realtek,rtl87x3g-timer";
+			reg = <0x40025280 0x50>;
+			interrupts = <73 0>;
+			channels = <0>;
+			clocks = <&cctl APB_CLK(TIMER1)>;
+			status = "disabled";
+			port = <1>;
+			channel = <8>;
+			case = <3>;
+
+			pwm8 {
+				compatible = "realtek,rtl87x3g-pwm";
+				status = "disabled";
+				#pwm-cells = <3>;
+			};
+		};
+
+		spi0: spi@40013000 {
+			compatible = "realtek,rtl87x3g-spi";
+			reg = <0x40013000 0xf0>;
+			interrupts = <5 0>;
+			clocks = <&cctl APB_CLK(SPI0)>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			max-bus-freq = <20000000>;
+		};
+
+		spi0_slave: spi_slave@40015c00 {
+			compatible = "realtek,rtl87x3g-spi";
+			reg = <0x40015c00 0xf0>;
+			interrupts = <103 0>;
+			clocks = <&cctl APB_CLK(SPI0_SLAVE)>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			is-slave;
+		};
+
+		spi1: spi@40019000 {
+			compatible = "realtek,rtl87x3g-spi";
+			reg = <0x40019000 0xf0>;
+			interrupts = <41 0>;
+			clocks = <&cctl APB_CLK(SPI1)>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			max-bus-freq = <20000000>;
+		};
+
+		spi1_hs: spi@40070000 {
+			compatible = "realtek,rtl87x3g-spi";
+			reg = <0x40070000 0xf0>;
+			interrupts = <41 0>;
+			clocks = <&cctl APB_CLK(SPI1)>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			max-bus-freq = <50000000>;
+		};
+
+		spi2: spi@40016000 {
+			compatible = "realtek,rtl87x3g-spi";
+			reg = <0x40016000 0xf0>;
+			interrupts = <42 0>;
+			clocks = <&cctl APB_CLK(SPI2)>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			max-bus-freq = <20000000>;
+		};
+
+		i2c0: i2c@40015000 {
+			compatible = "realtek,rtl87x3g-i2c";
+			reg = <0x40015000 0xa4>;
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <6 0>;
+			clocks = <&cctl APB_CLK(I2C0)>;
+			status = "disabled";
+		};
+
+		i2c1: i2c@40015400 {
+			compatible = "realtek,rtl87x3g-i2c";
+			reg = <0x40015400 0xa4>;
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <43 0>;
+			clocks = <&cctl APB_CLK(I2C1)>;
+			status = "disabled";
+		};
+
+		i2c2: i2c@40015800 {
+			compatible = "realtek,rtl87x3g-i2c";
+			reg = <0x40015800 0xa4>;
+			clock-frequency = <I2C_BITRATE_STANDARD>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			interrupts = <44 0>;
+			clocks = <&cctl APB_CLK(I2C2)>;
+			status = "disabled";
+		};
+
+		qdec: qdec@40004000 {
+			compatible = "realtek,rtl87x3g-qdec";
+			reg = <0x40004000 0x30>;
+			interrupts = <46 0>;
+			clocks = <&cctl APB_CLK(QDEC)>;
+			status = "disabled";
+		};
+
+		rtc: rtc@40000100 {
+			compatible = "realtek,rtl87x3g-rtc";
+			reg = <0x40000100 0x40>;
+			interrupts = <13 0>;
+			channels = <4>;
+			alarms-count = <4>;
+			status = "disabled";
+		};
+
+		input_kscan: input_kscan@40004400 {
+			compatible = "realtek,rtl87x3g-input-kscan";
+			reg = <0x40004400 0x44>;
+			interrupts = <45 0>;
+			clocks = <&cctl APB_CLK(KEYSCAN)>;
+			max-row-size = <12>;
+			max-col-size = <20>;
+			status = "disabled";
+		};
+
+		zephyr_udc0: udc@40100000 {
+			compatible = "realtek,rtl87x3g-udc", "snps,dwc2";
+			reg = <0x40100000 0x40000>, <0x40100000 0x40000>;
+			reg-names = "wrapper", "core";
+			interrupts = <81 0>;
+			num-in-eps = <6>;
+			num-out-eps = <6>;
+			ghwcfg1 = <0>;
+			ghwcfg2 = <0x22abfc72>;
+			ghwcfg4 = <0x1e10aa60>;
+			status = "disabled";
+		};
+
+		sdhc0: sdhc@40060000 {
+			compatible = "realtek,rtl87x3g-sdhc";
+			reg = <0x40060000 0x200>;
+			interrupts = <60 0>;
+			clocks = <&cctl APB_CLK(SD_HOST)>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			max-bus-freq = <50000000>;
+			min-bus-freq = <40000>;
+			status = "disabled";
+		};
+
+
+		sdhc1: sdhc@40062000 {
+			compatible = "realtek,rtl87x3g-sdhc";
+			reg = <0x40062000 0x200>;
+			interrupts = <109 0>;
+			clocks = <&cctl APB_CLK(SD_HOST1)>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			max-bus-freq = <50000000>;
+			min-bus-freq = <40000>;
+			status = "disabled";
+		};
+
+		adc: adc@40010000 {
+				compatible = "realtek,rtl87x3g-adc";
+				reg = <0x40010000 0x60>;
+				interrupts = <18 0>;
+				clocks = <&cctl APB_CLK(ADC)>;
+				channels = <8>;
+				status = "disabled";
+				#io-channel-cells = <1>;
+		};
+
+		trng: trng@400c2400 {
+			compatible = "realtek,bee-trng";
+			reg = <0x400c2400 0x68>;
+			status = "okay";
+		};
+
+		lppwm: lppwm@4fffffff {
+			compatible = "realtek,rtl87x3g-lppwm";
+			reg = <0x4fffffff 0x1>;
+			status = "disabled";
+			#pwm-cells = <3>;
+		};
+	};
+
+};
+
+&nvic {
+	arm,num-irq-priority-bits = <3>;
+};

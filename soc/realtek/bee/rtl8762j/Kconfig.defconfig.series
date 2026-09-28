@@ -1,0 +1,60 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+if SOC_SERIES_RTL8762J
+config SOC_SERIES
+	default "rtl8762j"
+
+config SOC_PART_NUMBER
+	default "rtl8762jx" if SOC_PART_NUMBER_RTL8762JX
+
+config NUM_IRQS
+	int
+	default 91
+
+# config CODE_DATA_RELOCATION
+# 	default y
+
+config USE_DT_CODE_PARTITION
+	default y
+
+config FPU
+	default y if CPU_HAS_FPU
+
+config CORTEX_M_SYSTICK
+	default n if REALTEK_GRTC_TIMER
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	int
+	default 40000000 if CORTEX_M_SYSTICK
+	default 32000 if REALTEK_GRTC_TIMER
+
+config SYS_CLOCK_TICKS_PER_SEC
+	int
+	default 100 if CORTEX_M_SYSTICK #10ms/1tick
+	default 1000 if REALTEK_GRTC_TIMER #1ms/1tick
+
+config TICKLESS_KERNEL
+	default y
+
+config TIMESLICE_SIZE
+	default 10
+
+config INIT_STACKS
+	default y
+
+config SOC_SERIES
+	default "rtl8762j"
+
+config IDLE_STACK_SIZE
+	default 1024 if REALTEK_BEE_PM
+
+config RUNTIME_NMI
+	default y
+
+# config COOP_ENABLED
+# 	default n
+
+# rsource "Kconfig.defconfig.rtl87*"
+# rsource "osif/Kconfig"
+
+endif # SOC_SERIES_RTL8762J

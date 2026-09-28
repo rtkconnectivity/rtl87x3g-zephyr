@@ -1,0 +1,37 @@
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  RTL87X3G GPIO.
+  Note that some of different pins could be mapped to the same gpio number.
+
+compatible: "realtek,rtl87x3g-gpio"
+
+include: [gpio-controller.yaml, base.yaml]
+
+properties:
+  reg:
+    required: true
+
+  clocks:
+    required: true
+
+  "#gpio-cells":
+    const: 2
+
+  port:
+    type: int
+    required: true
+    description: |
+      The GPIO port number. 
+      GPIO port GPIOA has:
+
+        port = <0>;
+
+      And GPIO port GPIOB has:
+
+        port = <1>;
+
+gpio-cells:
+  - pin
+  - flags

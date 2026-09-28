@@ -1,0 +1,19 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+config SOC_SERIES_RTL87X3G
+	select ARM
+	select CPU_CORTEX_M55
+	select CPU_HAS_FPU
+	select CPU_HAS_ARM_MPU
+	select DYNAMIC_INTERRUPTS
+	select ARMV8_M_DSP
+	select ARMV8_1_M_MVEI
+	select ARMV8_1_M_MVEF
+	select XIP
+	select MULTI_HEAP
+	select POLL#osif task signal
+	select SYS_HEAP_RUNTIME_STATS#osif mem
+	select THREAD_STACK_INFO#osif dlps
+	select HAS_PM
+	select PLATFORM_SPECIFIC_INIT
+	select THREAD_NAME

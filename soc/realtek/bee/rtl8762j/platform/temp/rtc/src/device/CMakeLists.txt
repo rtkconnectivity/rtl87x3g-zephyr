@@ -1,0 +1,3 @@
+zephyr_include_directories_ifdef(CONFIG_SOC_SERIES_RTL8762J rtl87x2j)
+add_subdirectory_ifdef(CONFIG_SOC_SERIES_RTL8762J rtl87x2j)
+add_subdirectory(rtl_common)

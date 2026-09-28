@@ -1,0 +1,38 @@
+/*
+ * Copyright(c) 2025, Realtek Semiconductor Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&zephyr_udc0 {
+	status = "okay";
+};
+
+&sdhc0 {
+	pin-group = <0>;
+	bus-width = <4>;
+	max-bus-freq = <50000000>;
+	power-delay-ms = <0>;
+	pinctrl-0 = <&sdhc0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+	sdcard_disk0 {
+		compatible = "zephyr,sdmmc-disk";
+		status = "okay";
+	};
+};
+
+&pinctrl {
+	sdhc0_default: sdhc0_default {
+		group1 {
+			psels = <RTL87X3G_PSEL(HS_P5_0_SDH0_CLK, P5_0, DIR_OUT, DRV_HIGH, PULL_UP)>,
+			<RTL87X3G_PSEL(HS_P5_1_SDH0_CMD, P5_1, DIR_OUT, DRV_HIGH, PULL_UP)>,
+			<RTL87X3G_PSEL(HS_P5_2_SDH0_DATA0, P5_2, DIR_OUT, DRV_HIGH, PULL_UP)>,
+			<RTL87X3G_PSEL(HS_P5_3_SDH0_DATA1, P5_3, DIR_OUT, DRV_HIGH, PULL_UP)>,
+			<RTL87X3G_PSEL(HS_P5_4_SDH0_DATA2, P5_4, DIR_OUT, DRV_HIGH, PULL_UP)>,
+			<RTL87X3G_PSEL(HS_P5_5_SDH0_DATA3, P5_5, DIR_OUT, DRV_HIGH, PULL_UP)>;
+			bias-pull-strong;
+			current-level = <1>;
+		};
+	};
+};

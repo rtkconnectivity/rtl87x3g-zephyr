@@ -1,0 +1,15 @@
+# RTL87X3G led configuration
+
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config LED_RTL87X3G
+	bool "RTL87X3G MCU led driver"
+	default y
+	depends on DT_HAS_REALTEK_RTL87X3G_LED_ENABLED
+	select USD_HAL_REALTEK_SLEEP_LED
+	help
+	  Enable the RTL87X3G led driver.
+	  The controller and the driver support two hardware configurations:
+	   - one three-channel (RGB) LED
+	   - or three single-channel LEDs

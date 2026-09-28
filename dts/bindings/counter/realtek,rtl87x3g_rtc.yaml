@@ -1,0 +1,40 @@
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  RTL87X3G COUNTER RTC.
+
+  From the above, setting 'status' is required while the prescaler is
+  optional. Check below for more information on the prescaler.
+
+compatible: "realtek,rtl87x3g-rtc"
+
+include: [base.yaml, rtc-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  channels:
+    required: true
+    type: int
+
+  src-clk-freq:
+    type: int
+    description: |
+      Frequency of rtc source clock. Default is 32000, can be 32768 if use external crystal.
+    enum:
+      - 32000
+      - 32768
+
+  prescaler:
+    description: |
+      The prescaler value defines the factor by which the clock will be
+      divided. The outcome of which serves as clock reference to the Timer
+      itself.
+
+    type: int
+    default: 1

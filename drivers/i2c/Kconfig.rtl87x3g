@@ -1,0 +1,22 @@
+# RTL87X3G i2c configuration
+
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config I2C_RTL87X3G
+	bool "RTL87X3G I2C driver"
+	default y
+	depends on DT_HAS_REALTEK_RTL87X3G_I2C_ENABLED
+	select USE_HAL_REALTEK_I2C
+	help
+	  Enable the RTL87X3G i2c driver.
+
+if I2C_RTL87X3G
+
+config I2C_RTL87X3G_INTERRUPT
+	bool
+	default n
+	help
+	  Do transfer with i2c interrupt.
+
+endif

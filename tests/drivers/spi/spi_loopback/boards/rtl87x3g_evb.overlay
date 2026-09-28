@@ -1,0 +1,62 @@
+/*
+ * Copyright(c) 2025, Realtek Semiconductor Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/dma/rtl87x3g-dma.h>
+
+&gpiob {
+	status = "okay";
+};
+
+&dma0 {
+    status = "okay";
+};
+
+&spi1_hs {
+	status = "okay";
+	pinctrl-0 = <&spi1_hs_default>;
+	pinctrl-names = "default";
+	dmas =  <&dma0 0 RTL87X3G_DMA_HANDSHAKE_SPI1_TX
+		  (RTL87X3G_DMA_M2P
+		   | RTL87X3G_DMA_SRC_INC
+		   | RTL87X3G_DMA_DST_FIXED
+		   | RTL87X3G_DMA_SRC_WIDTH_8BIT
+		   | RTL87X3G_DMA_DST_WIDTH_8BIT
+		   | RTL87X3G_DMA_SRC_MSIZE(RTL87X3G_DMA_MSIZE_16)
+		   | RTL87X3G_DMA_DST_MSIZE(RTL87X3G_DMA_MSIZE_16)
+		   | RTL87X3G_DMA_PRIORITY(1))>,
+		<&dma0 1 RTL87X3G_DMA_HANDSHAKE_SPI1_RX
+		  (RTL87X3G_DMA_P2M
+		   | RTL87X3G_DMA_SRC_FIXED
+		   | RTL87X3G_DMA_DST_INC
+		   | RTL87X3G_DMA_SRC_WIDTH_8BIT
+		   | RTL87X3G_DMA_DST_WIDTH_8BIT
+		   | RTL87X3G_DMA_SRC_MSIZE(RTL87X3G_DMA_MSIZE_16)
+		   | RTL87X3G_DMA_DST_MSIZE(RTL87X3G_DMA_MSIZE_16)
+		   | RTL87X3G_DMA_PRIORITY(0))>;
+	dma-names = "tx", "rx";
+	rx-sample-delay = <1>;
+	slow@0 {
+		compatible = "test-spi-loopback-slow";
+		reg = <0>;
+		spi-max-frequency = <10000000>;
+	};
+	fast@0 {
+		compatible = "test-spi-loopback-fast";
+		reg = <0>;
+		spi-max-frequency = <50000000>;
+	};
+};
+
+&pinctrl {
+	spi1_hs_default: spi1_hs_default {
+		group1 {
+			psels = <RTL87X3G_PSEL(HS_P4_2_SPI1_CLK, P4_2, DIR_IN, DRV_LOW, PULL_NONE)>,
+				<RTL87X3G_PSEL(HS_P4_3_SPI1_MISO, P4_3, DIR_IN, DRV_LOW, PULL_NONE)>,
+				<RTL87X3G_PSEL(HS_P4_4_SPI1_MOSI, P4_4, DIR_IN, DRV_LOW, PULL_NONE)>,
+				<RTL87X3G_PSEL(HS_P4_5_SPI1_CSN, P4_5, DIR_IN, DRV_LOW, PULL_NONE)>;
+		};
+	};
+};

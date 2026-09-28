@@ -1,0 +1,461 @@
+/*
+ * Copyright (c) 2016 Intel Corporation.
+ * Copyright (c) 2022-2024 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <string.h>
+#include <zephyr/types.h>
+#include <zephyr/sys/__assert.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/drivers/disk.h>
+#include <errno.h>
+#include <zephyr/init.h>
+#include <zephyr/device.h>
+#include <fmc_api.h>
+
+#include <zephyr/logging/log.h>
+#include "os_sync.h"
+LOG_MODULE_REGISTER(flashdisk, 3);
+
+#if defined(CONFIG_FLASH_HAS_EXPLICIT_ERASE) &&	\
+	defined(CONFIG_FLASH_HAS_NO_EXPLICIT_ERASE)
+#define DISK_ERASE_RUNTIME_CHECK
+#endif
+
+typedef long off_t;
+
+struct flashdisk_data {
+	struct disk_info info;
+	struct k_mutex lock;
+	const unsigned int area_id;
+	const off_t offset;
+	uint8_t *const cache;
+	const size_t cache_size;
+	const size_t size;
+	const size_t sector_size;
+	size_t page_size;
+	off_t cached_addr;
+	bool cache_valid;
+	bool cache_dirty;
+	bool erase_required;
+};
+
+#define GET_SIZE_TO_BOUNDARY(start, block_size) \
+	(block_size - (start & (block_size - 1)))
+#define DEFAULT_PAGE_SIZE	4096
+#define RTK_FLASH_ADDR_BASE	CONFIG_FLASH_BASE_ADDRESS
+
+static inline bool flashdisk_with_erase(const struct flashdisk_data *ctx)
+{
+	return true;
+}
+
+
+static int disk_flash_access_status(struct disk_info *disk)
+{
+	return DISK_STATUS_OK;
+	//cannot find disk dev, maybe we do not have flash controller?
+	// printk("status : %s", disk->dev ? "okay" : "no media");
+	// if (!disk->dev) {
+	// 	return DISK_STATUS_NOMEDIA;
+	// }
+
+	// return DISK_STATUS_OK;
+}
+
+static int disk_flash_access_init(struct disk_info *disk)
+{
+	struct flashdisk_data *ctx;
+
+	ctx = CONTAINER_OF(disk, struct flashdisk_data, info);
+	//check erasable
+	//get page size
+	ctx->page_size = DEFAULT_PAGE_SIZE;
+	//check read only
+	if (ctx->cache_size == 0) {
+		/* Read-only flashdisk, no flash partition constraints */
+		LOG_INF("%s is read-only", ctx->info.name);
+		return 0;
+	}
+
+	LOG_ERR("disk_flash_access_init: %s, %d, %ld, %d\n", ctx->info.name, ctx->area_id, ctx->offset, ctx->size);
+	return 0;
+}
+
+static int rtk_flash_read(const struct device * dev, off_t offset, void * data, size_t len)
+{
+	memcpy(data, (void *)(RTK_FLASH_ADDR_BASE + offset), len);
+	return 0;
+}
+
+static int rtk_flash_write(const struct device * dev, off_t offset, void * data, size_t len)
+{
+	bool ret = fmc_flash_nor_write(RTK_FLASH_ADDR_BASE + offset, data, len);
+	SCB_InvalidateDCache_by_Addr((void *)(RTK_FLASH_ADDR_BASE + offset), len);	
+	return !ret;
+}
+
+static int rtk_flash_erase(const struct device * dev, off_t offset, size_t len)
+{
+	uint32_t s = os_lock();
+	bool ret = fmc_flash_nor_erase(RTK_FLASH_ADDR_BASE + offset, FMC_FLASH_NOR_ERASE_SECTOR);
+	os_unlock(s);
+	return !ret;
+}
+
+static bool sectors_in_range(struct flashdisk_data *ctx,
+			     uint32_t start_sector, uint32_t sector_count)
+{
+	uint32_t start, end;
+
+	start = ctx->offset + (start_sector * ctx->sector_size);
+	end = start + (sector_count * ctx->sector_size);
+
+	if ((end >= start) && (start >= ctx->offset) && (end <= ctx->offset + ctx->size)) {
+		return true;
+	}
+
+	LOG_ERR("sector start %" PRIu32 " count %" PRIu32
+		" outside partition boundary", start_sector, sector_count);
+	return false;
+}
+
+static int disk_flash_access_read(struct disk_info *disk, uint8_t *buff,
+				uint32_t start_sector, uint32_t sector_count)
+{
+	struct flashdisk_data *ctx;
+	off_t fl_addr;
+	uint32_t remaining;
+	uint32_t offset;
+	uint32_t len;
+	int rc = 0;
+
+	ctx = CONTAINER_OF(disk, struct flashdisk_data, info);
+
+	if (!sectors_in_range(ctx, start_sector, sector_count)) {
+		return -EINVAL;
+	}
+
+	fl_addr = ctx->offset + start_sector * ctx->sector_size;
+	remaining = (sector_count * ctx->sector_size);
+
+	k_mutex_lock(&ctx->lock, K_FOREVER);
+
+	/* Operate on page addresses to easily check for cached data */
+	offset = fl_addr & (ctx->page_size - 1);
+	fl_addr = ROUND_DOWN(fl_addr, ctx->page_size);
+
+	/* Read up to page boundary on first iteration */
+	len = ctx->page_size - offset;
+	while (remaining) {
+		if (remaining < len) {
+			len = remaining;
+		}
+
+		if (ctx->cache_valid && ctx->cached_addr == fl_addr) {
+			memcpy(buff, &ctx->cache[offset], len);
+		} else if (rtk_flash_read(disk->dev, fl_addr + offset, buff, len) < 0) {
+			rc = -EIO;
+			goto end;
+		}
+
+		fl_addr += ctx->page_size;
+		remaining -= len;
+		buff += len;
+
+		/* Try to read whole page on next iteration */
+		len = ctx->page_size;
+		offset = 0;
+	}
+
+end:
+	k_mutex_unlock(&ctx->lock);
+
+	return rc;
+}
+
+static int flashdisk_cache_commit(struct flashdisk_data *ctx)
+{
+	if (!ctx->cache_valid || !ctx->cache_dirty) {
+		/* Either no cached data or cache matches flash data */
+		return 0;
+	}
+
+	if (flashdisk_with_erase(ctx)) {
+		if (rtk_flash_erase(ctx->info.dev, ctx->cached_addr, ctx->page_size) < 0) {
+			return -EIO;
+		}
+	}
+
+	/* write data to flash */
+	if (rtk_flash_write(ctx->info.dev, ctx->cached_addr, ctx->cache, ctx->page_size) < 0) {
+		return -EIO;
+	}
+
+	ctx->cache_dirty = false;
+	return 0;
+}
+
+static int flashdisk_cache_load(struct flashdisk_data *ctx, off_t fl_addr)
+{
+	int rc;
+
+	__ASSERT_NO_MSG((fl_addr & (ctx->page_size - 1)) == 0);
+
+	if (ctx->cache_valid) {
+		if (ctx->cached_addr == fl_addr) {
+			/* Page is already cached */
+			return 0;
+		}
+		/* Different page is in cache, commit it first */
+		rc = flashdisk_cache_commit(ctx);
+		if (rc < 0) {
+			/* Failed to commit dirty page, abort */
+			return rc;
+		}
+	}
+
+	/* Load page into cache */
+	ctx->cache_valid = false;
+	ctx->cache_dirty = false;
+	ctx->cached_addr = fl_addr;
+	rc = rtk_flash_read(ctx->info.dev, fl_addr, ctx->cache, ctx->page_size);
+	if (rc == 0) {
+		/* Successfully loaded into cache, mark as valid */
+		ctx->cache_valid = true;
+		return 0;
+	}
+
+	return -EIO;
+}
+
+/* input size is either less or equal to a block size (ctx->page_size)
+ * and write data never spans across adjacent blocks.
+ */
+static int flashdisk_cache_write(struct flashdisk_data *ctx, off_t start_addr,
+				uint32_t size, const void *buff)
+{
+
+	int rc;
+	off_t fl_addr;
+	uint32_t offset;
+
+	/* adjust offset if starting address is not erase-aligned address */
+	offset = start_addr & (ctx->page_size - 1);
+
+	/* always align starting address for flash cache operations */
+	fl_addr = ROUND_DOWN(start_addr, ctx->page_size);
+
+	/* when writing full page the address must be page aligned
+	 * when writing partial page user data must be within a single page
+	 */
+	__ASSERT_NO_MSG(fl_addr + ctx->page_size >= start_addr + size);
+
+	rc = flashdisk_cache_load(ctx, fl_addr);
+	if (rc < 0) {
+		return rc;
+	}
+
+	/* Do not mark cache as dirty if data to be written matches cache.
+	 * If cache is already dirty, copy data to cache without compare.
+	 */
+	if (ctx->cache_dirty || memcmp(&ctx->cache[offset], buff, size)) {
+		/* Update cache and mark it as dirty */
+		memcpy(&ctx->cache[offset], buff, size);
+		ctx->cache_dirty = true;
+	}
+
+	return 0;
+}
+
+static int disk_flash_access_write(struct disk_info *disk, const uint8_t *buff,
+				 uint32_t start_sector, uint32_t sector_count)
+{
+	struct flashdisk_data *ctx;
+	off_t fl_addr;
+	uint32_t remaining;
+	uint32_t size;
+	int rc = 0;
+
+	ctx = CONTAINER_OF(disk, struct flashdisk_data, info);
+
+	if (ctx->cache_size == 0) {
+		return -ENOTSUP;
+	}
+
+	if (!sectors_in_range(ctx, start_sector, sector_count)) {
+		return -EINVAL;
+	}
+
+	fl_addr = ctx->offset + start_sector * ctx->sector_size;
+	remaining = (sector_count * ctx->sector_size);
+
+	k_mutex_lock(&ctx->lock, K_FOREVER);
+
+	/* check if start address is erased-aligned address  */
+	if (fl_addr & (ctx->page_size - 1)) {
+		off_t block_bnd;
+
+		/* not aligned */
+		/* check if the size goes over flash block boundary */
+		block_bnd = fl_addr + ctx->page_size;
+		block_bnd = block_bnd & ~(ctx->page_size - 1);
+		if ((fl_addr + remaining) <= block_bnd) {
+			/* not over block boundary (a partial block also) */
+			if (flashdisk_cache_write(ctx, fl_addr, remaining, buff) < 0) {
+				rc = -EIO;
+			}
+			goto end;
+		}
+
+		/* write goes over block boundary */
+		size = GET_SIZE_TO_BOUNDARY(fl_addr, ctx->page_size);
+
+		/* write first partial block */
+		if (flashdisk_cache_write(ctx, fl_addr, size, buff) < 0) {
+			rc = -EIO;
+			goto end;
+		}
+
+		fl_addr += size;
+		remaining -= size;
+		buff += size;
+	}
+
+	/* start is an erase-aligned address */
+	while (remaining) {
+		if (remaining < ctx->page_size) {
+			break;
+		}
+
+		if (flashdisk_cache_write(ctx, fl_addr, ctx->page_size, buff) < 0) {
+			rc = -EIO;
+			goto end;
+		}
+
+		fl_addr += ctx->page_size;
+		remaining -= ctx->page_size;
+		buff += ctx->page_size;
+	}
+
+	/* remaining partial block */
+	if (remaining) {
+		if (flashdisk_cache_write(ctx, fl_addr, remaining, buff) < 0) {
+			rc = -EIO;
+			goto end;
+		}
+	}
+
+end:
+	k_mutex_unlock(&ctx->lock);
+
+	return 0;
+}
+
+static int disk_flash_access_ioctl(struct disk_info *disk, uint8_t cmd, void *buff)
+{
+	int rc;
+	struct flashdisk_data *ctx;
+
+	ctx = CONTAINER_OF(disk, struct flashdisk_data, info);
+
+	switch (cmd) {
+	case DISK_IOCTL_CTRL_DEINIT:
+	case DISK_IOCTL_CTRL_SYNC:
+		k_mutex_lock(&ctx->lock, K_FOREVER);
+		rc = flashdisk_cache_commit(ctx);
+		k_mutex_unlock(&ctx->lock);
+		return rc;
+	case DISK_IOCTL_GET_SECTOR_COUNT:
+		*(uint32_t *)buff = ctx->size / ctx->sector_size;
+		return 0;
+	case DISK_IOCTL_GET_SECTOR_SIZE:
+		*(uint32_t *)buff = ctx->sector_size;
+		return 0;
+	case DISK_IOCTL_GET_ERASE_BLOCK_SZ: /* in sectors */
+		k_mutex_lock(&ctx->lock, K_FOREVER);
+		*(uint32_t *)buff = ctx->page_size / ctx->sector_size;
+		k_mutex_unlock(&ctx->lock);
+		return 0;
+	case DISK_IOCTL_CTRL_INIT:
+		return disk_flash_access_init(disk);
+	default:
+		break;
+	}
+
+	return -EINVAL;
+}
+
+static const struct disk_operations flash_disk_ops = {
+	.init = disk_flash_access_init,
+	.status = disk_flash_access_status,
+	.read = disk_flash_access_read,
+	.write = disk_flash_access_write,
+	.ioctl = disk_flash_access_ioctl,
+};
+
+#define DT_DRV_COMPAT zephyr_flash_disk
+
+#define PARTITION_PHANDLE(n) DT_PHANDLE_BY_IDX(DT_DRV_INST(n), partition, 0)
+/* Force cache size to 0 if partition is read-only */
+#define CACHE_SIZE(n) (DT_INST_PROP(n, cache_size) * !DT_PROP(PARTITION_PHANDLE(n), read_only))
+
+#define DEFINE_FLASHDISKS_CACHE(n) \
+	static uint8_t __aligned(4) flashdisk##n##_cache[CACHE_SIZE(n)];
+DT_INST_FOREACH_STATUS_OKAY(DEFINE_FLASHDISKS_CACHE)
+
+#define DEFINE_FLASHDISKS_DEVICE(n)						\
+{										\
+	.info = {								\
+		.ops = &flash_disk_ops,						\
+		.name = DT_INST_PROP(n, disk_name),				\
+	},									\
+	.area_id = DT_FIXED_PARTITION_ID(PARTITION_PHANDLE(n)),			\
+	.offset = DT_REG_ADDR(PARTITION_PHANDLE(n)),				\
+	.cache = flashdisk##n##_cache,						\
+	.cache_size = sizeof(flashdisk##n##_cache),				\
+	.size = DT_REG_SIZE(PARTITION_PHANDLE(n)),				\
+	.sector_size = DT_INST_PROP(n, sector_size),				\
+},
+
+static struct flashdisk_data flash_disks[] = {
+	DT_INST_FOREACH_STATUS_OKAY(DEFINE_FLASHDISKS_DEVICE)
+};
+
+#define VERIFY_CACHE_SIZE_IS_NOT_ZERO_IF_NOT_READ_ONLY(n)			\
+	COND_CODE_1(DT_PROP(PARTITION_PHANDLE(n), read_only),			\
+		(/* cache-size is not used for read-only disks */),		\
+		(BUILD_ASSERT(DT_INST_PROP(n, cache_size) != 0,			\
+		"Devicetree node " DT_NODE_PATH(DT_DRV_INST(n))			\
+		" must have non-zero cache-size");))
+DT_INST_FOREACH_STATUS_OKAY(VERIFY_CACHE_SIZE_IS_NOT_ZERO_IF_NOT_READ_ONLY)
+
+#define VERIFY_CACHE_SIZE_IS_MULTIPLY_OF_SECTOR_SIZE(n)					\
+	BUILD_ASSERT(DT_INST_PROP(n, cache_size) % DT_INST_PROP(n, sector_size) == 0,	\
+		"Devicetree node " DT_NODE_PATH(DT_DRV_INST(n))				\
+		" has cache size which is not a multiple of its sector size");
+DT_INST_FOREACH_STATUS_OKAY(VERIFY_CACHE_SIZE_IS_MULTIPLY_OF_SECTOR_SIZE)
+
+static int disk_flash_init(void)
+{
+	int err = 0;
+
+	for (int i = 0; i < ARRAY_SIZE(flash_disks); i++) {
+		int rc;
+
+		k_mutex_init(&flash_disks[i].lock);
+
+		rc = disk_access_register(&flash_disks[i].info);
+		if (rc < 0) {
+			LOG_ERR("Failed to register disk %s error %d",
+				flash_disks[i].info.name, rc);
+			err = rc;
+		}
+	}
+
+	return err;
+}
+
+SYS_INIT(disk_flash_init, APPLICATION, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

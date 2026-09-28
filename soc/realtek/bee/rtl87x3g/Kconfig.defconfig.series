@@ -1,0 +1,99 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+if SOC_SERIES_RTL87X3G
+config SOC_SERIES
+	default "rtl87x3g"
+
+config SOC_PART_NUMBER
+	default "rtl8773gtp" if SOC_PART_NUMBER_RTL8773GTP
+	default "rtl8783gbf" if SOC_PART_NUMBER_RTL8783GBF
+	default "rtl8763gws" if SOC_PART_NUMBER_RTL8763GWS
+	default "rtl8763gts" if SOC_PART_NUMBER_RTL8763GTS
+
+config NUM_IRQS
+	int
+	default 116
+
+config CODE_DATA_RELOCATION
+	default y
+
+config USE_DT_CODE_PARTITION
+	default y
+
+config FPU
+	default y if CPU_HAS_FPU
+
+config SYS_CLOCK_HW_CYCLES_PER_SEC
+	int
+	default 32000
+
+config SYS_CLOCK_TICKS_PER_SEC
+	int
+	default 100 #10ms/1tick
+
+config TICKLESS_KERNEL
+	default n
+
+config TIMESLICE_SIZE
+	default 10
+
+config INIT_STACKS
+	default y
+
+config IDLE_STACK_SIZE
+	default 1024
+
+config RUNTIME_NMI
+	default y
+
+config NUM_COOP_PRIORITIES
+	default 0 if !TEST
+
+if PM
+config PM_DEVICE
+	default y
+
+config REALTEK_PM_WAKEUP_REASON_GET
+	bool "Enable to get wakeup reason after wakeup from deep sleep."
+	select LOG
+	default n
+endif
+
+choice
+	prompt "DSP Share RAM Size options"
+	default DSP_SHARE_RAM_80K
+	depends on PLATFORM_SPECIFIC_INIT
+
+config DSP_SHARE_RAM_80K
+	bool "SHARE 80K RAM from DSP to MCU."
+
+config DSP_SHARE_RAM_160K
+	bool "SHARE 160K RAM from DSP to MCU."
+
+config DSP_SHARE_RAM_208K
+	bool "SHARE 208K RAM from DSP to MCU."
+
+config DSP_SHARE_RAM_448K
+	bool "SHARE 448K RAM from DSP to MCU."
+
+endchoice
+
+#to disable zephyr logging thread and use rtk logging mechanism
+
+config LOG_RTK
+	bool "Retarget from zephyr logging system to RTK log system"
+	depends on LOG && !UART_CONSOLE && !SHELL
+	select LOG_OUTPUT
+	default y
+
+if LOG_RTK
+
+config LOG_PROCESS_THREAD
+	default n
+
+endif
+
+# rsource "Kconfig.defconfig.rtl87*"
+rsource "osif/Kconfig"
+
+endif # SOC_SERIES_RTL87X3G

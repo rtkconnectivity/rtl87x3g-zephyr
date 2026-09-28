@@ -1,0 +1,52 @@
+# RTL87X3G sdhc configuration
+
+# Copyright(c) 2020, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config SDHC_RTL87X3G
+	bool "RTL87X3G MCU serial driver"
+	default y
+	depends on DT_HAS_REALTEK_RTL87X3G_SDHC_ENABLED
+	select USE_HAL_REALTEK_SDHC
+	select SDHC_SUPPORTS_NATIVE_MODE
+
+	help
+	  Enable the RTL87X3G sdhc driver.
+
+if SDHC_RTL87X3G
+config SDHC_BUFFER_ALIGNMENT
+	default 4
+
+config SDHC_RTL87X3G_TUNING
+	bool "Tuning during card initialization"
+	default y
+	help
+	  Enable the RTL87X3G sdhc tuning.
+
+config SDHC_RTL87X3G_READ_STATIC
+	bool "Use static read alignment buffer"
+	default n
+	help
+	  Use a dedicated static buffer for SD card read alignment instead of the
+	  card internal buffer (card_buffer). The RTL87X3G SDHC requires aligned
+	  read buffers, and in practice most callers pass unaligned buffers. The
+	  card internal buffer is only 512 bytes (one block), so bouncing an
+	  unaligned read through it splits a large transfer into many single-block
+	  reads, which is slow. This static buffer holds
+	  SDHC_RTL87X3G_READ_STATIC_BLOCKS blocks, so unaligned reads are split into
+	  far fewer, larger transfers. Aligned buffers are still read into directly.
+	  The trade-off is SDHC_RTL87X3G_READ_STATIC_BLOCKS * 512 bytes of extra RAM.
+
+config SDHC_RTL87X3G_READ_STATIC_BLOCKS
+	int "Number of blocks for static read buffer"
+	range 1 64
+	default 8
+	depends on SDHC_RTL87X3G_READ_STATIC
+	help
+	  Number of blocks (512 bytes each) for the static read alignment buffer.
+	  Larger values reduce the number of card read transfers for unaligned
+	  reads (higher throughput) at the cost of RAM (N * 512 bytes). Requests
+	  larger than this are automatically split into chunks of this size.
+	  Minimum value is 1, maximum is 64.
+
+endif

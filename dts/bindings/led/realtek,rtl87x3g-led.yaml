@@ -1,0 +1,123 @@
+# Copyright(c) 2024, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  RTL87X3G LED.
+
+  The following example defines a single RGB LED in the sleep-led DT node
+
+  &sleep-led {
+    status = "okay";
+
+    led_0 {
+      label = "RGB LED";
+      index = <0>;
+      color-mapping =
+        <LED_COLOR_ID_RED>,
+        <LED_COLOR_ID_GREEN>,
+        <LED_COLOR_ID_BLUE>;
+        pinctrl-0 = <&rgb_led_default>;
+        pinctrl-names = "default";
+    };
+  };
+
+  &pinctrl {
+    rgb_led_default: rgb_led_default {
+      group1 {
+        psels = <RTL87X3G_PSEL(LED0, P6_0, DIR_OUT, DRV_HIGH, PULL_NONE)>,
+        <RTL87X3G_PSEL(LED1, P6_1, DIR_OUT, DRV_HIGH, PULL_NONE)>,
+        <RTL87X3G_PSEL(LED2, P6_2, DIR_OUT, DRV_HIGH, PULL_NONE)>;
+      };
+  };
+
+  The following example defines three single-channel LEDs in the sleep-led DT node
+
+  &sleep-led {
+    status = "okay";
+
+    led_0 {
+      label = "RED LED";
+      index = <0>;
+      color-mapping =
+        <LED_COLOR_ID_RED>;
+        pinctrl-0 = <&r_led_default>;
+        pinctrl-names = "default";
+    };
+
+    led_1 {
+      label = "GREEN LED";
+      index = <1>;
+      color-mapping =
+        <LED_COLOR_ID_GREEN>;
+        pinctrl-0 = <&g_led_default>;
+        pinctrl-names = "default";
+    };
+
+    led_2 {
+      label = "BLUE LED";
+      index = <2>;
+      color-mapping =
+        <LED_COLOR_ID_BLUE>;
+        pinctrl-0 = <&b_led_default>;
+        pinctrl-names = "default";
+    };
+  };
+
+  &pinctrl {
+    r_led_default: r_led_default {
+      group1 {
+        psels = <RTL87X3G_PSEL(LED0, P6_0, DIR_OUT, DRV_HIGH, PULL_NONE)>;
+      };
+    g_led_default: g_led_default {
+      group1 {
+        psels = <RTL87X3G_PSEL(LED1, P6_1, DIR_OUT, DRV_HIGH, PULL_NONE)>;
+      };
+    b_led_default: b_led_default {
+      group1 {
+        psels = <RTL87X3G_PSEL(LED2, P6_2, DIR_OUT, DRV_HIGH, PULL_NONE)>;
+      };
+  };
+
+compatible: "realtek,rtl87x3g-led"
+
+include: [led-controller.yaml, base.yaml]
+
+properties:
+  reg:
+    required: true
+
+child-binding:
+  include: [pinctrl-device.yaml]
+
+  properties:
+    label:
+      required: true
+
+    index:
+      required: true
+
+    color-mapping:
+      required: true
+
+    pinctrl-0:
+      required: true
+
+    pinctrl-names:
+      required: true
+
+    active-low:
+      type: boolean
+      description: low level is active
+
+    prescale:
+      type: int
+      default: 1
+      description: |
+        Prescale for sleep led, the source clock is 32kHz.
+        Can be set from 1 to 1024.
+
+    frequency-hz:
+      type: int
+      default: 500
+      description: |
+        Output frequency to set brightness.

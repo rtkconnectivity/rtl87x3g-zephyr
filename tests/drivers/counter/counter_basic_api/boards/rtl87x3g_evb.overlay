@@ -1,0 +1,36 @@
+/*
+ * Copyright(c) 2025, Realtek Semiconductor Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+&timer4 {
+	prescaler = <1>;
+	status = "okay";
+};
+
+&timer5 {
+	prescaler = <1>;
+	status = "okay";
+};
+
+&timer6 {
+	prescaler = <1>;
+	status = "okay";
+};
+
+&timer7 {
+	prescaler = <1>;
+	status = "okay";
+};
+
+&timer8 {
+	prescaler = <1>;
+	status = "okay";
+};
+
+&rtc {
+	src-clk-freq = <32768>;
+	prescaler = <1>;
+	status = "okay";
+};

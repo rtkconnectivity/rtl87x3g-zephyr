@@ -1,0 +1,30 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+config SOC_FAMILY_REALTEK_BEE
+	select BUILD_OUTPUT_HEX
+	select HAS_SEGGER_RTT if ZEPHYR_SEGGER_MODULE
+
+if SOC_FAMILY_REALTEK_BEE
+
+rsource "*/Kconfig"
+
+config REALTEK_BEE_IMAGE_HEADER
+	bool
+	default y
+	help
+	  This config will prepend realtek bee image_header on the zephyr binary.
+
+config REALTEK_BEE_FPGA
+	bool
+	default n
+	help
+	  This config means building app for FPGA.
+
+config REALTEK_BEE_FAULT_HANDLER
+	bool "use realtek bee fault handler"
+	default n
+	help
+	  This config will use realtek's fault handler instead of zephyr's.
+
+
+endif # SOC_FAMILY_REALTEK_BEE

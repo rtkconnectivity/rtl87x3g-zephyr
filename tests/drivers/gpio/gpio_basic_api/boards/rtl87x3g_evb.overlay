@@ -1,0 +1,24 @@
+/*
+ * Copyright(c) 2025, Realtek Semiconductor Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/gpio/realtek-rtl87x3g-gpio.h>
+
+&gpioa {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+/ {
+	resources {
+		compatible = "test-gpio-basic-api";
+		// out: P2_4, in: P2_5
+		out-gpios = <&gpioa 19 GPIO_ACTIVE_HIGH>;
+		in-gpios = <&gpioa 20 (GPIO_ACTIVE_HIGH | RTL87X3G_GPIO_INPUT_DEBOUNCE_MS(8))>;
+	};
+};

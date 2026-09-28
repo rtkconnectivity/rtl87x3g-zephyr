@@ -1,0 +1,379 @@
+/**
+ * Copyright (c) 2017, Realtek Semiconductor Corporation. All rights reserved.
+ */
+
+#ifndef _SOC_LOG_H_
+#define _SOC_LOG_H_
+
+#include <stdint.h>
+#include <stdbool.h>
+#include "log_core.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+/**
+ * \defgroup    TRACE       Trace
+ *
+ * \brief       Defines debug trace macros for each module.
+ *
+ */
+
+
+/**
+ * log.h
+ *
+ * \name    MODULE_ID
+ * \brief   Module ID definition.
+ * \anchor  MODULE_ID
+ */
+/**
+ * \ingroup TRACE
+ */
+/**@{*/
+typedef enum
+{
+    /* platform modules */
+    MODULE_PATCH                    = 0,
+    MODULE_OS                       = 1,
+    MODULE_OSIF                     = 2,
+    MODULE_BOOT                     = 3,
+    MODULE_PM                       = 4,
+    MODULE_CRYPTO                   = 5,
+    MODULE_DEBUG                    = 7,
+    MODULE_PHY                      = 8,
+    MODULE_DVFS                     = 9,
+
+    /* device modules */
+    MODULE_UART                     = 22,
+    MODULE_FLASH                    = 23,
+    MODULE_CHARGER                  = 29,
+    MODULE_IO                       = 33,
+    MODULE_TEST                     = 36,
+
+    /* stack modules */
+    MODULE_RFCOMM                   = 50,
+    MODULE_PROFILE                  = 51,
+    MODULE_PROTOCOL                 = 52,
+    MODULE_GAP                      = 53,
+    MODULE_BTE                      = 54,
+    MODULE_BTIF                     = 55,
+    MODULE_GATT                     = 56,
+    MODULE_SMP                      = 57,
+    MODULE_SDP                      = 58,
+    MODULE_L2CAP                    = 59,
+    MODULE_HCI                      = 60,
+    MODULE_SNOOP                    = 61,
+    MODULE_UPPERSTACK               = 62,
+    MODULE_LOWERSTACK               = 63,
+
+    MODULE_NUM                      = 64
+} T_MODULE_ID;
+/**@}*/
+
+
+/* Bluetooth HCI Snoop Trace Interfaces */
+#define BT_SNOOP_DOWN_TRACE(length, snoop)  \
+    DBG_SNOOP(SUBTYPE_DOWN_SNOOP,length, snoop);
+#define BT_SNOOP_UP_TRACE(length, snoop)  \
+    DBG_SNOOP(SUBTYPE_UP_SNOOP,length, snoop);
+
+
+/* Bluetooth Message Trace Interfaces */
+#define BT_MESSAGE_DOWN_PRINT_ERROR(length, message)   \
+    DBG_STREAM( SUBTYPE_DOWN_MESSAGE, MODULE_UPPERSTACK, LEVEL_ERROR, length, message)
+#define BT_MESSAGE_DOWN_PRINT_WARN(length, message)   \
+    DBG_STREAM( SUBTYPE_DOWN_MESSAGE, MODULE_UPPERSTACK, LEVEL_WARN, length, message)
+#define BT_MESSAGE_DOWN_PRINT_INFO(length, message)   \
+    DBG_STREAM( SUBTYPE_DOWN_MESSAGE, MODULE_UPPERSTACK, LEVEL_INFO, length, message)
+#define BT_MESSAGE_DOWN_PRINT_TRACE(length, message)   \
+    DBG_STREAM( SUBTYPE_DOWN_MESSAGE, MODULE_UPPERSTACK, LEVEL_TRACE, length, message)
+#define BT_MESSAGE_UP_PRINT_ERROR(length, message)   \
+    DBG_STREAM( SUBTYPE_UP_MESSAGE, MODULE_UPPERSTACK, LEVEL_ERROR,  length, message)
+#define BT_MESSAGE_UP_PRINT_WARN(length, message)   \
+    DBG_STREAM( SUBTYPE_UP_MESSAGE, MODULE_UPPERSTACK, LEVEL_WARN, length, message)
+#define BT_MESSAGE_UP_PRINT_INFO(length, message)   \
+    DBG_STREAM( SUBTYPE_UP_MESSAGE, MODULE_UPPERSTACK, LEVEL_INFO, length, message)
+#define BT_MESSAGE_UP_PRINT_TRACE(length, message)   \
+    DBG_STREAM( SUBTYPE_UP_MESSAGE, MODULE_UPPERSTACK, LEVEL_TRACE, length, message)
+
+#define PATCH_PRINT_ERROR(...)   \
+    DBG_INDEX( SUBTYPE_INDEX, MODULE_PATCH, LEVEL_ERROR, __VA_ARGS__)
+#define PATCH_PRINT_WARN(...)   \
+    DBG_INDEX( SUBTYPE_INDEX, MODULE_PATCH, LEVEL_WARN, __VA_ARGS__)
+#define PATCH_PRINT_INFO(...)   \
+    DBG_INDEX( SUBTYPE_INDEX, MODULE_PATCH, LEVEL_INFO, __VA_ARGS__)
+#define PATCH_PRINT_TRACE(...)   \
+    DBG_INDEX( SUBTYPE_INDEX, MODULE_PATCH, LEVEL_TRACE, __VA_ARGS__)
+
+/* Bluetooth Lower Stack Trace Interfaces */
+#define LOWERSTACK_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_LOWERSTACK, LEVEL_ERROR, __VA_ARGS__)
+#define LOWERSTACK_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_LOWERSTACK, LEVEL_WARN, __VA_ARGS__)
+#define LOWERSTACK_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_LOWERSTACK, LEVEL_INFO, __VA_ARGS__)
+#define LOWERSTACK_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_LOWERSTACK, LEVEL_TRACE, __VA_ARGS__)
+
+/* OS Trace Interfaces */
+#define OS_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_OS, LEVEL_ERROR, __VA_ARGS__)
+#define OS_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_OS, LEVEL_WARN, __VA_ARGS__)
+#define OS_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_OS, LEVEL_INFO, __VA_ARGS__)
+#define OS_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_OS, LEVEL_TRACE, __VA_ARGS__)
+
+/* OSIF Trace Interfaces */
+#define OSIF_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_OSIF, LEVEL_ERROR, __VA_ARGS__)
+#define OSIF_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_OSIF, LEVEL_WARN, __VA_ARGS__)
+#define OSIF_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_OSIF, LEVEL_INFO, __VA_ARGS__)
+#define OSIF_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_OSIF, LEVEL_TRACE, __VA_ARGS__)
+
+/* Bluetooth PROTOCOL Trace Interfaces */
+#define PROTOCOL_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PROTOCOL, LEVEL_ERROR, __VA_ARGS__)
+#define PROTOCOL_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PROTOCOL, LEVEL_WARN, __VA_ARGS__)
+#define PROTOCOL_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PROTOCOL, LEVEL_INFO, __VA_ARGS__)
+#define PROTOCOL_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PROTOCOL, LEVEL_TRACE, __VA_ARGS__)
+
+/* Bluetooth PROFILE Trace Interfaces */
+#define PROFILE_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PROFILE, LEVEL_ERROR, __VA_ARGS__)
+#define PROFILE_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PROFILE, LEVEL_WARN, __VA_ARGS__)
+#define PROFILE_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PROFILE, LEVEL_INFO, __VA_ARGS__)
+#define PROFILE_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PROFILE, LEVEL_TRACE, __VA_ARGS__)
+
+/**
+ * soc_log.h
+ *
+ * \name    KM0_OS_PRINT_TRACE
+ * \brief   KM0 OS Trace Interfaces.
+ * \anchor  KM0_OS_PRINT_TRACE
+ */
+/**
+ * \ingroup TRACE
+ */
+/**@{*/
+/*  KM0_OS Trace Interfaces */
+#define KM0_OS_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_OS, LEVEL_ERROR, __VA_ARGS__)
+#define KM0_OS_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_OS, LEVEL_WARN, __VA_ARGS__)
+#define KM0_OS_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_OS, LEVEL_INFO, __VA_ARGS__)
+#define KM0_OS_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_OS, LEVEL_TRACE, __VA_ARGS__)
+/**@}*/
+
+/**
+ * soc_log.h
+ *
+ * \name    KM0_OSIF_PRINT_TRACE
+ * \brief   KM0 OSIF Trace Interfaces.
+ * \anchor  KM0_OSIF_PRINT_TRACE
+ */
+/**
+ * \ingroup TRACE
+ */
+/**@{*/
+/*  KM0_OSIF Trace Interfaces */
+#define KM0_OSIF_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_OSIF, LEVEL_ERROR, __VA_ARGS__)
+#define KM0_OSIF_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_OSIF, LEVEL_WARN, __VA_ARGS__)
+#define KM0_OSIF_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_OSIF, LEVEL_INFO, __VA_ARGS__)
+#define KM0_OSIF_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_OSIF, LEVEL_TRACE, __VA_ARGS__)
+/**@}*/
+
+/*  AES Trace Interfaces */
+#define AES_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_AES, LEVEL_ERROR, __VA_ARGS__)
+#define AES_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_AES, LEVEL_WARN, __VA_ARGS__)
+#define AES_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_AES, LEVEL_INFO, __VA_ARGS__)
+#define AES_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_AES, LEVEL_TRACE, __VA_ARGS__)
+
+/*  PM Trace Interfaces */
+#define PM_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PM, LEVEL_ERROR, __VA_ARGS__)
+#define PM_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PM, LEVEL_WARN, __VA_ARGS__)
+#define PM_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PM, LEVEL_INFO, __VA_ARGS__)
+#define PM_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PM, LEVEL_TRACE, __VA_ARGS__)
+
+/*  PHY Trace Interfaces */
+#define PHY_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PHY, LEVEL_ERROR, __VA_ARGS__)
+#define PHY_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PHY, LEVEL_WARN, __VA_ARGS__)
+#define PHY_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PHY, LEVEL_INFO, __VA_ARGS__)
+#define PHY_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_PHY, LEVEL_TRACE, __VA_ARGS__)
+
+/*  DVFS Trace Interfaces */
+#define DVFS_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_DVFS, LEVEL_ERROR, __VA_ARGS__)
+#define DVFS_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_DVFS, LEVEL_WARN, __VA_ARGS__)
+#define DVFS_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_DVFS, LEVEL_INFO, __VA_ARGS__)
+#define DVFS_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_DVFS, LEVEL_TRACE, __VA_ARGS__)
+
+/*  KR0_BOOT Trace Interfaces */
+#define KR0_BOOT_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KR0_BOOT, LEVEL_ERROR, __VA_ARGS__)
+#define KR0_BOOT_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KR0_BOOT, LEVEL_WARN, __VA_ARGS__)
+#define KR0_BOOT_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KR0_BOOT, LEVEL_INFO, __VA_ARGS__)
+#define KR0_BOOT_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KR0_BOOT, LEVEL_TRACE, __VA_ARGS__)
+
+/*  KM0_BOOT Trace Interfaces */
+#define KM0_BOOT_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_BOOT, LEVEL_ERROR, __VA_ARGS__)
+#define KM0_BOOT_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_BOOT, LEVEL_WARN, __VA_ARGS__)
+#define KM0_BOOT_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_BOOT, LEVEL_INFO, __VA_ARGS__)
+#define KM0_BOOT_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_KM0_BOOT, LEVEL_TRACE, __VA_ARGS__)
+
+/*  IO Trace Interfaces */
+#define IO_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_IO, LEVEL_ERROR, __VA_ARGS__)
+#define IO_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_IO, LEVEL_WARN, __VA_ARGS__)
+#define IO_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_IO, LEVEL_INFO, __VA_ARGS__)
+#define IO_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_IO, LEVEL_TRACE, __VA_ARGS__)
+
+/*  BOOT Trace Interfaces */
+#define BOOT_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_BOOT, LEVEL_ERROR, __VA_ARGS__)
+#define BOOT_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_BOOT, LEVEL_WARN, __VA_ARGS__)
+#define BOOT_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_BOOT, LEVEL_INFO, __VA_ARGS__)
+#define BOOT_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_BOOT, LEVEL_TRACE, __VA_ARGS__)
+
+/*  FLASH Trace Interfaces */
+#define FLASH_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_FLASH, LEVEL_ERROR, __VA_ARGS__)
+#define FLASH_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_FLASH, LEVEL_WARN, __VA_ARGS__)
+#define FLASH_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_FLASH, LEVEL_INFO, __VA_ARGS__)
+#define FLASH_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_FLASH, LEVEL_TRACE, __VA_ARGS__)
+
+/*  CHARGER Trace Interfaces */
+#define CHARGER_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_CHARGER, LEVEL_ERROR, __VA_ARGS__)
+#define CHARGER_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_CHARGER, LEVEL_WARN, __VA_ARGS__)
+#define CHARGER_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_CHARGER, LEVEL_INFO, __VA_ARGS__)
+#define CHARGER_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_CHARGER, LEVEL_TRACE, __VA_ARGS__)
+
+/*  ADC Trace Interfaces */
+#define ADC_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_ADC, LEVEL_ERROR, __VA_ARGS__)
+#define ADC_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_ADC, LEVEL_WARN, __VA_ARGS__)
+#define ADC_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_ADC, LEVEL_INFO, __VA_ARGS__)
+#define ADC_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_ADC, LEVEL_TRACE, __VA_ARGS__)
+
+/*  DMA Trace Interfaces */
+#define DMA_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_DMA, LEVEL_ERROR, __VA_ARGS__)
+#define DMA_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_DMA, LEVEL_WARN, __VA_ARGS__)
+#define DMA_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_DMA, LEVEL_INFO, __VA_ARGS__)
+#define DMA_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_DMA, LEVEL_TRACE, __VA_ARGS__)
+
+
+/*  RTC Trace Interfaces */
+#define RTC_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_RTC, LEVEL_ERROR, __VA_ARGS__)
+#define RTC_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_RTC, LEVEL_WARN, __VA_ARGS__)
+#define RTC_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_RTC, LEVEL_INFO, __VA_ARGS__)
+#define RTC_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_RTC, LEVEL_TRACE, __VA_ARGS__)
+
+/*  SPI Trace Interfaces */
+#define SPI_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_SPI, LEVEL_ERROR, __VA_ARGS__)
+#define SPI_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_SPI, LEVEL_WARN, __VA_ARGS__)
+#define SPI_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_SPI, LEVEL_INFO, __VA_ARGS__)
+#define SPI_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_SPI, LEVEL_TRACE, __VA_ARGS__)
+
+/*  TIMER Trace Interfaces */
+#define TIMER_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_TIMER, LEVEL_ERROR, __VA_ARGS__)
+#define TIMER_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_TIMER, LEVEL_WARN, __VA_ARGS__)
+#define TIMER_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_TIMER, LEVEL_INFO, __VA_ARGS__)
+#define TIMER_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_TIMER, LEVEL_TRACE, __VA_ARGS__)
+
+/*  UART Trace Interfaces */
+#define UART_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_UART, LEVEL_ERROR, __VA_ARGS__)
+#define UART_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_UART, LEVEL_WARN, __VA_ARGS__)
+#define UART_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_UART, LEVEL_INFO, __VA_ARGS__)
+#define UART_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_UART, LEVEL_TRACE, __VA_ARGS__)
+
+/*  NMI Trace Interfaces */
+#define NMI_PRINT_ERROR(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_NMI, LEVEL_ERROR, __VA_ARGS__)
+#define NMI_PRINT_WARN(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_NMI, LEVEL_WARN, __VA_ARGS__)
+#define NMI_PRINT_INFO(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_NMI, LEVEL_INFO, __VA_ARGS__)
+#define NMI_PRINT_TRACE(...)   \
+    DBG_BUFFER( SUBTYPE_FORMAT, MODULE_NMI, LEVEL_TRACE, __VA_ARGS__)
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* _SOC_LOG_H_ */

@@ -1,0 +1,35 @@
+# Copyright (c) 2022 Nordic Semiconductor ASA
+# Copyright (c) 2025 Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: Block storage device on NAND flash partition
+
+compatible: "realtek,nand-flash-disk"
+
+include: base.yaml
+
+properties:
+
+  disk-name:
+    type: string
+    required: true
+    description: |
+      Disk name.
+  
+  disk-size:
+    type: int
+    required: true
+    description: |
+      Disk size in bytes.
+
+  block-size:
+    type: int
+    required: true
+    description: |
+      Emulated block device block size in bytes.
+
+  page-size:
+    type: int
+    default: 2048
+    description: |
+      Emulated block device page size in bytes.

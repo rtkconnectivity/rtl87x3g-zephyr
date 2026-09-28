@@ -1,0 +1,36 @@
+# Copyright (c) 2016 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+config DISK_DRIVER_FLASH
+	bool "Flash"
+	select FLASH
+	select FLASH_MAP
+	help
+	  Flash device is used for the file system.
+
+config DISK_DRIVER_FLASH_RTK
+	bool "Flash RTK"
+	depends on SOC_SERIES_RTL87X3G
+	help
+	  RTK Flash device is used for the file system.
+
+config DISK_DRIVER_NAND_FLASH_RTK
+	bool "NAND Flash RTK"
+	depends on SOC_SERIES_RTL87X3G
+	help
+	  RTK NAND Flash device is used for the file system.
+
+if DISK_DRIVER_FLASH
+
+config FLASHDISK_VERIFY_PAGE_LAYOUT
+	bool "Verify flashdisk partition layout"
+	default y
+	help
+	  Enable runtime zephyr,flash-disk partition page layout constraints
+	  verification. Disable to reduce code size.
+
+module = FLASHDISK
+module-str = flashdisk
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # DISK_DRIVER_FLASH

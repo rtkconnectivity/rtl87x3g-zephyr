@@ -1,0 +1,10 @@
+
+&flash {
+	partitions {
+		/delete-node/ ftl_region;
+		storage_partition: partition@33a000 {
+			label = "storage";
+		 	reg = <0x33A000 DT_SIZE_K(32)>;
+		};
+	};
+};

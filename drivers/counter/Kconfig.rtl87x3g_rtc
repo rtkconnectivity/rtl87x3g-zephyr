@@ -1,0 +1,12 @@
+# RTL87X3G counter rtc configuration
+
+# Copyright(c) 2024, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config COUNTER_RTC_RTL87X3G
+	bool "RTL87X3G rtc counter driver"
+	default y if !RTC_RTL87X3G
+	depends on DT_HAS_REALTEK_RTL87X3G_RTC_ENABLED
+	select USE_HAL_REALTEK_RTC
+	help
+	  Enable the RTL87X3G counter rtc driver.

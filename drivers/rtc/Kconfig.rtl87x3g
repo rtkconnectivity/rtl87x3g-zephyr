@@ -1,0 +1,12 @@
+# RTL87X3G rtc configuration
+
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config RTC_RTL87X3G
+	bool "RTL87X3G RTC driver"
+	default n
+	depends on DT_HAS_REALTEK_RTL87X3G_RTC_ENABLED
+	select USE_HAL_REALTEK_RTC
+	help
+	  Enable the RTL87X3G rtc driver.

@@ -1,0 +1,67 @@
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: |
+  RTL87X3G COUNTER TIMER.
+  Each Timer is part of a Timer Group and the number of available Timers
+  is SoC-dependent.
+  RTL87X3G has 7 Timers available.
+
+  In order to use one of the available timers on your application add
+  a <board>.overlay file with contents as below
+
+    &timer2 {
+            status = "okay";
+            prescaler = <1>;
+    };
+
+  From the above, setting 'status' is required while the prescaler is
+  optional. Check below for more information on the prescaler.
+
+compatible: "realtek,rtl87x3g-timer"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  channels:
+    required: true
+    type: int
+
+  port:
+    required: true
+    type: int
+
+  channel:
+    required: true
+    type: int
+
+  case:
+    required: true
+    type: int
+
+  prescaler:
+    description: |
+      The prescaler value defines the factor by which the clock will be
+      divided.
+      RTL87X3G supports 1/2/4/8/16/32/40/64.
+
+    type: int
+    default: 1
+    enum:
+      - 1
+      - 2
+      - 4
+      - 8
+      - 16
+      - 32
+      - 40
+      - 64

@@ -1,0 +1,14 @@
+config FILE_SYSTEM_ROMFS
+    bool "ROMFS file system"
+    depends on SOC_SERIES_RTL87X3G
+    default n
+    help
+      Enable ROMFS file system.
+
+config FS_ROMFS_NUM_FILES
+    int "ROMFS number of files"
+    depends on FILE_SYSTEM_ROMFS
+    default 4
+    help
+      Number of files that can be opened simultaneously.
+

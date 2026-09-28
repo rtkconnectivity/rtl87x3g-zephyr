@@ -1,0 +1,39 @@
+/*
+ * Copyright(c) 2024, Realtek Semiconductor Corporation.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/led/led.h>
+
+/ {
+	aliases {
+		led-controller-0 = &sleep_led;
+	};
+};
+
+&sleep_led {
+	  status = "okay";
+	  led_0 {
+	    label = "RGB LED";
+	    index = <0>;
+	    color-mapping =
+	      <LED_COLOR_ID_RED>,
+	      <LED_COLOR_ID_GREEN>,
+	      <LED_COLOR_ID_BLUE>;
+	    pinctrl-0 = <&rgb_led_default>;
+	    pinctrl-names = "default";
+		active-low;
+		prescale = <1>;
+		frequency-hz=<500>;
+	  };
+	};
+
+&pinctrl {
+	rgb_led_default: rgb_led_default {
+		group1 {
+			psels = <RTL87X3G_PSEL(LED0, P4_0, DIR_OUT, DRV_LOW, PULL_NONE)>,
+			<RTL87X3G_PSEL(LED1, P4_1, DIR_OUT, DRV_LOW, PULL_NONE)>,
+			<RTL87X3G_PSEL(LED2, P4_2, DIR_OUT, DRV_LOW, PULL_NONE)>;
+		};
+	};
+};

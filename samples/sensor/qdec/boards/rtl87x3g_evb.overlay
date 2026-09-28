@@ -1,0 +1,48 @@
+/*
+ * Copyright(c) 2025, Realtek Semiconductor Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <dt-bindings/pinctrl/rtl87x3g-pinctrl.h>
+/ {
+	aliases {
+		qdec0 = &qdec;
+		qenca = &phase_a;
+		qencb = &phase_b;
+	};
+	encoder-emulate {
+		compatible = "gpio-leds";
+		phase_a: phase_a {
+			gpios = <&gpioa 17 GPIO_ACTIVE_HIGH>;
+		};
+		phase_b: phase_b {
+			gpios = <&gpioa 18 GPIO_ACTIVE_HIGH>;
+		};
+	};
+};
+
+&gpioa {
+	status = "okay";
+};
+
+&gpiob {
+	status = "okay";
+};
+
+&qdec {
+	status = "okay";
+	x-counts-per-revolution = <4>;
+	x-debounce-time-ms = <5>;
+	pinctrl-0 = <&qdec_default>;
+	pinctrl-names = "default";
+};
+
+&pinctrl {
+	qdec_default: qdec_default {
+		group1 {
+			psels = <RTL87X3G_PSEL(QDEC_PHASE_A_X, P4_4, DIR_IN, DRV_LOW, PULL_UP)>,
+			<RTL87X3G_PSEL(QDEC_PHASE_B_X, P4_5, DIR_IN, DRV_LOW, PULL_UP)>;
+		};
+	};
+};

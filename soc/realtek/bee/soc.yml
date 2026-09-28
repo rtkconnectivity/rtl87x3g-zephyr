@@ -1,0 +1,12 @@
+family:
+- name: realtek_bee
+  series:
+  - name: rtl8762j
+    socs:
+    - name: rtl8762jx
+  - name: rtl87x3g
+    socs:
+    - name: rtl8773gtp
+    - name: rtl8763gws
+    - name: rtl8783gbf
+    - name: rtl8763gts

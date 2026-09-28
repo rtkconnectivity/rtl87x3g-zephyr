@@ -1,0 +1,45 @@
+# Copyright (c) 2024 Realtek Semiconductor Corp.
+# SPDX-License-Identifier: Apache-2.0
+config SOC_SERIES_RTL87X3G
+	bool
+	select SOC_FAMILY_REALTEK_BEE
+	help
+	  Enable support for Realtek RTL87X3G series
+
+config SOC_RTL8773GTP
+	bool
+	select SOC_SERIES_RTL87X3G
+
+config SOC_RTL8783GBF
+	bool
+	select SOC_SERIES_RTL87X3G
+	
+config SOC_RTL8763GWS
+	bool
+	select SOC_SERIES_RTL87X3G
+
+config SOC_RTL8763GTS
+	bool
+	select SOC_SERIES_RTL87X3G
+
+config SOC
+	default "rtl8773gtp" if SOC_RTL8773GTP
+	default "rtl8783gbf" if SOC_RTL8783GBF
+	default "rtl8763gws" if SOC_RTL8763GWS
+	default "rtl8763gts" if SOC_RTL8763GTS
+
+config SOC_PART_NUMBER_RTL8773GTP
+	bool
+
+config SOC_PART_NUMBER_RTL8783GBF
+	bool
+	
+config SOC_PART_NUMBER_RTL8763GWS
+	bool
+
+config SOC_PART_NUMBER_RTL8763GTS
+	bool
+
+config SOC_NAND_BOOT
+	bool 
+	default n

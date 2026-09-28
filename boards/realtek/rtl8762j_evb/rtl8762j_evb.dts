@@ -1,0 +1,55 @@
+/*
+ * Copyright(c) 2024, Realtek Semiconductor Corporation.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+/dts-v1/;
+#include <realtek/rtl8762j.dtsi>
+/ {
+	model = "Realtek rtl8762j evb";
+	compatible = "realtek,rtl8762j_evb";
+	chosen {
+		zephyr,sram = &sram;
+		zephyr,flash = &eflash;
+		zephyr,code-partition = &app;
+	};
+	/* These aliases are provided for compatibility with samples */
+	aliases {
+	};
+};
+
+&eflash
+{
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		boot_patch: partition@0 {
+			label = "boot-patch";
+			reg = <0x0 DT_SIZE_K(70)>;
+		};
+		ota_header: partition@11800 {
+			label = "ota-header";
+			reg = <0x11800 DT_SIZE_K(1)>;
+		};
+		sys_patch: partition@11c00 {
+			label = "system-patch";
+			reg = <0x11C00 DT_SIZE_K(32)>;
+		};
+		bt_controller: partition@19c00 {
+			label = "bt-controller";
+			reg = <0x19C00 DT_SIZE_K(250)>;
+		};
+		bt_host: partition@58400 {
+			label = "bt-host";
+			reg = <0x58400 DT_SIZE_K(150)>;
+		};
+		app: partition@7dc00 {
+			label = "application";
+			reg = <0x7DC00 DT_SIZE_K(217)>;
+		};	
+	};
+};
+
+&cpu {
+	clock-frequency = <40000000>;
+};

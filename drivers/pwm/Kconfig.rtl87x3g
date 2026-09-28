@@ -1,0 +1,20 @@
+# RTL87X3G pwm configuration
+
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config PWM_RTL87X3G
+	bool "RTL87X3G PWM driver"
+	default y
+	depends on DT_HAS_REALTEK_RTL87X3G_PWM_ENABLED
+	select USE_HAL_REALTEK_TIM
+	help
+	  Enable the RTL87X3G pwm driver.
+
+config LPPWM_RTL87X3G
+	bool "RTL87X3G LPPWM driver"
+	default y
+	depends on DT_HAS_REALTEK_RTL87X3G_LPPWM_ENABLED
+	select USE_HAL_REALTEK_LPPWM
+	help
+	  Enable the RTL87X3G low-power PWM (AON domain) driver.

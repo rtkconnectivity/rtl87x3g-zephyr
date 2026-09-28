@@ -1,0 +1,33 @@
+/*
+ * Copyright(c) 2024, Realtek Semiconductor Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <zephyr/dt-bindings/dma/rtl87x3g-dma.h>
+
+&uart2 {
+	dmas =  <&dma0 2 RTL87X3G_DMA_HANDSHAKE_UART2_RX
+		  (RTL87X3G_DMA_P2M
+		   | RTL87X3G_DMA_SRC_FIXED
+		   | RTL87X3G_DMA_DST_INC
+		   | RTL87X3G_DMA_SRC_WIDTH_8BIT
+		   | RTL87X3G_DMA_DST_WIDTH_8BIT
+		   | RTL87X3G_DMA_SRC_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_DST_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_PRIORITY(0))>,
+		<&dma0 3 RTL87X3G_DMA_HANDSHAKE_UART2_TX
+		  (RTL87X3G_DMA_M2P
+		   | RTL87X3G_DMA_SRC_INC
+		   | RTL87X3G_DMA_DST_FIXED
+		   | RTL87X3G_DMA_SRC_WIDTH_8BIT
+		   | RTL87X3G_DMA_DST_WIDTH_8BIT
+		   | RTL87X3G_DMA_SRC_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_DST_MSIZE(RTL87X3G_DMA_MSIZE_1)
+		   | RTL87X3G_DMA_PRIORITY(0))>;
+	dma-names = "rx", "tx";
+};
+
+&dma0 {
+	status = "okay";
+};

@@ -1,0 +1,244 @@
+# RTL87X3G gpio configuration
+
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig GPIO_RTL87X3G
+	bool "RTL87X3G MCU GPIO driver"
+	default y
+	select USE_HAL_REALTEK_GPIO
+	depends on DT_HAS_REALTEK_RTL87X3G_GPIO_ENABLED
+	help
+	  Enable the RTL87X3G gpio driver.
+
+if GPIO_RTL87X3G && SOC_SERIES_RTL87X3G
+
+config RTL87X3G_USE_P10_4_AS_GPIOA11
+	bool "Use P10_4 as GPIOA_11"
+	default n
+	help
+	  If true, use P10_4 as GPIOA_11, else use P1_4.
+
+config RTL87X3G_USE_P10_5_AS_GPIOA12
+	bool "Use P10_5 as GPIOA_12"
+	default n
+	help
+	  If true, use P10_5 as GPIOA_12, else use P1_5.
+
+config RTL87X3G_USE_P10_6_AS_GPIOA13
+	bool "Use P10_6 as GPIOA_13"
+	default n
+	help
+	  If true, use P10_6 as GPIOA_13, else use P5_4.
+
+config RTL87X3G_USE_SPIC3_SIO2_AS_GPIOA14
+	bool "Use SPIC3_SIO2 as GPIOA_14"
+	default n
+	help
+	  If true, use SPIC3_SIO2 as GPIOA_14, else use P5_5.
+
+config RTL87X3G_USE_P5_6_AS_GPIOA15
+	bool "Use P5_6 as GPIOA_15"
+	default n
+	help
+	  If true, use P5_6 as GPIOA_15, else use P2_0.
+
+config RTL87X3G_USE_SPIC3_CSN_AS_GPIOA16
+	bool "Use SPIC3_CSN as GPIOA_16"
+	default n
+	help
+	  If true, use SPIC3_CSN as GPIOA_16, else use P2_1.
+
+config RTL87X3G_USE_SPIC3_SIO0_AS_GPIOA17
+	bool "Use SPIC3_SIO0 as GPIOA_17"
+	default n
+	help
+	  If true, use SPIC3_SIO0 as GPIOA_17, else use P2_2.
+
+config RTL87X3G_USE_MIC1_P_AS_GPIOA25
+	bool "Use MIC1_P as GPIOA_25"
+	default n
+	help
+	  If true, use MIC1_P as GPIOA_25, else use P6_0.
+
+config RTL87X3G_USE_MIC1_N_AS_GPIOA26
+	bool "Use MIC1_N as GPIOA_26"
+	default n
+	help
+	  If true, use MIC1_N as GPIOA_26, else use P6_1.
+
+config RTL87X3G_USE_MIC2_P_AS_GPIOA27
+	bool "Use MIC2_P as GPIOA_27"
+	default n
+	help
+	  If true, use MIC2_P as GPIOA_27, else use P6_2.
+
+config RTL87X3G_USE_MIC2_N_AS_GPIOA28
+	bool "Use MIC2_N as GPIOA_28"
+	default n
+	help
+	  If true, use MIC2_N as GPIOA_28, else use P6_3.
+
+config RTL87X3G_USE_MICBIAS1_AS_GPIOA29
+	bool "Use MICBIAS1 as GPIOA_29"
+	default n
+	help
+	  If true, use MICBIAS1 as GPIOA_29, else use P6_4.
+
+config RTL87X3G_USE_SPIC3_SCK_AS_GPIOA30
+	bool "Use SPIC3_SCK as GPIOA_30"
+	default n
+	help
+	  If true, use SPIC3_SCK as GPIOA_30, else use DAOUT1_P.
+
+config RTL87X3G_USE_SPIC3_SIO3_AS_GPIOA31
+	bool "Use SPIC3_SIO3 as GPIOA_31"
+	default n
+	help
+	  If true, use SPIC3_SIO3 as GPIOA_31, else use DAOUT1_N.
+
+config RTL87X3G_USE_LOUT_P_AS_GPIOB7
+	bool "Use LOUT_P as GPIOB_7"
+	default n
+	help
+	  If true, use LOUT_P as GPIOB_7, else use P4_0.
+
+config RTL87X3G_USE_LOUT_N_AS_GPIOB8
+	bool "Use LOUT_N as GPIOB_8"
+	default n
+	help
+	  If true, use LOUT_N as GPIOB_8, else use P4_1.
+
+config RTL87X3G_USE_ROUT_P_AS_GPIOB9
+	bool "Use ROUT_P as GPIOB_9"
+	default n
+	help
+	  If true, use ROUT_P as GPIOB_9, else use P4_2.
+
+config RTL87X3G_USE_ROUT_N_AS_GPIOB10
+	bool "Use ROUT_N as GPIOB_10"
+	default n
+	help
+	  If true, use ROUT_N as GPIOB_10, else use P4_3.
+
+config RTL87X3G_USE_MICBIAS2_AS_GPIOB12
+	bool "Use MICBIAS2 as GPIOB_12"
+	default n
+	help
+	  If true, use MICBIAS2 as GPIOB_12, else use P4_5.
+
+config RTL87X3G_USE_DAOUT2_P_AS_GPIOB13
+	bool "Use DAOUT2_P as GPIOB_13"
+	default n
+	help
+	  If true, use DAOUT2_P as GPIOB_13, else use P4_6.
+
+config RTL87X3G_USE_DAOUT2_N_AS_GPIOB14
+	bool "Use DAOUT2_N as GPIOB_14"
+	default n
+	help
+	  If true, use DAOUT2_N as GPIOB_14, else use P4_7.
+
+config RTL87X3G_USE_P7_0_AS_GPIOB15
+	bool "Use P7_0 as GPIOB_15"
+	default n
+	help
+	  If true, use P7_0 as GPIOB_15, else use P5_0.
+
+config RTL87X3G_USE_P7_1_AS_GPIOB16
+	bool "Use P7_1 as GPIOB_16"
+	default n
+	help
+	  If true, use P7_1 as GPIOB_16, else use P5_1.
+
+config RTL87X3G_USE_P7_2_AS_GPIOB17
+	bool "Use P7_2 as GPIOB_17"
+	default n
+	help
+	  If true, use P7_2 as GPIOB_17, else use P5_2.
+
+config RTL87X3G_USE_P7_3_AS_GPIOB18
+	bool "Use P7_3 as GPIOB_18"
+	default n
+	help
+	  If true, use P7_3 as GPIOB_18, else use P5_3.
+
+config RTL87X3G_USE_P8_6_AS_GPIOB19
+	bool "Use P8_6 as GPIOB_19"
+	default n
+	help
+	  If true, use P8_6 as GPIOB_19, else use P7_4.
+
+config RTL87X3G_USE_P8_7_AS_GPIOB20
+	bool "Use P8_7 as GPIOB_20"
+	default n
+	help
+	  If true, use P8_7 as GPIOB_20, else use P7_5.
+
+config RTL87X3G_USE_P7_6_AS_GPIOB21
+	bool "Use P7_6 as GPIOB_21"
+	default n
+	help
+	  If true, use P7_6 as GPIOB_21, else use ADC_4.
+
+config RTL87X3G_USE_SPIC3_SIO1_AS_GPIOB22
+	bool "Use SPIC3_SIO1 as GPIOB_22"
+	default n
+	help
+	  If true, use SPIC3_SIO1 as GPIOB_22, else use ADC_5.
+
+config RTL87X3G_USE_SPIC1_SIO2_AS_GPIOB23
+	bool "Use SPIC1_SIO2 as GPIOB_23"
+	default n
+	help
+	  If true, use SPIC1_SIO2 as GPIOB_23, else use ADC_6.
+
+config RTL87X3G_USE_SPIC1_SIO1_AS_GPIOB24
+	bool "Use SPIC1_SIO1 as GPIOB_24"
+	default n
+	help
+	  If true, use SPIC1_SIO1 as GPIOB_24, else use ADC_7.
+
+config RTL87X3G_USE_SPIC1_CSN_AS_GPIOB25
+	bool "Use SPIC1_CSN as GPIOB_25"
+	default n
+	help
+	  If true, use SPIC1_CSN as GPIOB_25, else use P3_5.
+
+config RTL87X3G_USE_SPIC1_SIO0_AS_GPIOB26
+	bool "Use SPIC1_SIO0 as GPIOB_26"
+	default n
+	help
+	  If true, use SPIC1_SIO0 as GPIOB_26, else use P8_0.
+
+config RTL87X3G_USE_SPIC1_SCK_AS_GPIOB27
+	bool "Use SPIC1_SCK as GPIOB_27"
+	default n
+	help
+	  If true, use SPIC1_SCK as GPIOB_27, else use P8_1.
+
+config RTL87X3G_USE_SPIC1_SIO3_AS_GPIOB28
+	bool "Use SPIC1_SIO3 as GPIOB_28"
+	default n
+	help
+	  If true, use SPIC1_SIO3 as GPIOB_28, else use P8_2.
+
+config RTL87X3G_USE_P10_0_AS_GPIOB29
+	bool "Use P10_0 as GPIOB_29"
+	default n
+	help
+	  If true, use P10_0 as GPIOB_29, else use P8_3.
+
+config RTL87X3G_USE_P10_1_AS_GPIOB30
+	bool "Use P10_1 as GPIOB_30"
+	default n
+	help
+	  If true, use P10_1 as GPIOB_30, else use P8_4.
+
+config RTL87X3G_USE_P10_2_AS_GPIOB31
+	bool "Use P10_2 as GPIOB_31"
+	default n
+	help
+	  If true, use P10_2 as GPIOB_31, else use P8_5.
+
+endif # GPIO_RTL87X3G && SOC_SERIES_RTL87X3G

@@ -1,0 +1,40 @@
+/*
+ * Copyright(c) 2024, Realtek Semiconductor Corporation.
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <image_info.h>
+#include <stdlib.h>
+#include <rom_uuid.h>
+#include <version.h>
+
+extern void z_arm_reset(void);
+
+const T_IMG_HEADER_FORMAT img_header __attribute__((section(".image_header"))) = {
+	.auth = {
+			.cmac = {[0 ... 15] = 0xFF},
+	},
+	.ctrl_header = {
+			.ic_type = 18,
+			.secure_version = 0,
+			.ctrl_flag.load_when_boot = 0,
+			.ctrl_flag.not_ready = 0,
+			.ctrl_flag.not_obsolete = 1,
+			.ctrl_flag.integrity_check_en_in_boot = 0,
+			.image_id = IMG_MCUAPP,
+			.payload_len = 0x100,
+	},
+	.git_ver.sub_version = {
+			._version_major = KERNEL_VERSION_MAJOR,
+			._version_minor = KERNEL_VERSION_MINOR,
+			._version_revision = KERNEL_PATCHLEVEL,
+	},
+	.encrypt_header =
+    {
+        .ctrl_flag.enc = 0,
+    },
+	.uuid = DEFINE_symboltable_uuid,
+	.exe_entry = (unsigned int)z_arm_reset,
+	// .image_base = CONFIG_FLASH_BASE_ADDRESS + CONFIG_FLASH_LOAD_OFFSET,
+};

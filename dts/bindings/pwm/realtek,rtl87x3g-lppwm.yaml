@@ -1,0 +1,32 @@
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: RTL87X3G LPPWM (Low Power PWM, AON domain)
+
+compatible: "realtek,rtl87x3g-lppwm"
+
+include: [base.yaml, pwm-controller.yaml, pinctrl-device.yaml]
+
+properties:
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  "#pwm-cells":
+    const: 3
+
+  src-clk-freq:
+    type: int
+    description: |
+      Frequency of LPPWM source clock. Default is 32000, can be 32768 if
+      using external crystal or different AON clock configuration.
+    enum:
+      - 32000
+      - 32768
+
+pwm-cells:
+  - channel
+  - period
+  - flags

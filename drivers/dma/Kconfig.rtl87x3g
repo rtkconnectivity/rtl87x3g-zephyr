@@ -1,0 +1,12 @@
+# RTL87X3G dma configuration
+
+# Copyright(c) 2024, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+config DMA_RTL87X3G
+	bool "RTL87X3G MCU DMA driver"
+	default y
+	depends on DT_HAS_REALTEK_RTL87X3G_DMA_ENABLED
+	select USE_HAL_REALTEK_DMA
+	help
+	  Enable the RTL87X3G dma driver.

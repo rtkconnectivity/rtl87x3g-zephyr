@@ -1,0 +1,39 @@
+# Copyright(c) 2025, Realtek Semiconductor Corporation.
+# SPDX-License-Identifier: Apache-2.0
+
+description: RTL87X3G SPI
+
+compatible: "realtek,rtl87x3g-spi"
+
+include: [spi-controller.yaml, reset-device.yaml, pinctrl-device.yaml]
+
+properties:
+  reg:
+    required: true
+
+  interrupts:
+    required: true
+
+  clocks:
+    required: true
+
+  pinctrl-0:
+    required: true
+
+  pinctrl-names:
+    required: true
+
+  rx-sample-delay:
+    type: int
+    description: |
+      Sample delay on spi miso/mosi line. This parameter can be 0 to 255.
+
+  is-slave:
+    type: boolean
+    description: Indicate the spi is spi slave.
+
+  max-bus-freq:
+    type: int
+    default: 400000
+    description: |
+      Maximum bus frequency for SPI bus.

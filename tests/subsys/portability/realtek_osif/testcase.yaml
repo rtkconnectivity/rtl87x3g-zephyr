@@ -1,0 +1,5 @@
+tests:
+  portability.realtek_osif:
+    tags: realtek_osif
+    min_ram: 32
+    min_flash: 34

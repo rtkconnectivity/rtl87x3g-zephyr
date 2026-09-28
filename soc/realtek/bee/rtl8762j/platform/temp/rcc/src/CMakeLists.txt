@@ -1,0 +1,1 @@
+add_subdirectory_ifdef(CONFIG_SOC_SERIES_RTL8762J device/rtl87x2j)

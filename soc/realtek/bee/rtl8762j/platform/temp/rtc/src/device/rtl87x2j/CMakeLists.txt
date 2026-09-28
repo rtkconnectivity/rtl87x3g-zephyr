@@ -1,0 +1,1 @@
+zephyr_library_sources(rtl87x2j_grtc.c)

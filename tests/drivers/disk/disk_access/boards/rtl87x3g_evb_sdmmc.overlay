@@ -1,0 +1,33 @@
+&sdhc0 {
+	pin-group = <1>;
+	bus-width = <4>;
+	max-bus-freq = <50000000>;
+	pwr-gpios = <&gpioa 0 GPIO_ACTIVE_HIGH>;
+	power-delay-ms = <0>;
+	pinctrl-0 = <&sdhc0_default>;
+	pinctrl-names = "default";
+	status = "okay";
+	sdcard_disk0: sdcard_disk0 {
+		compatible = "zephyr,sdmmc-disk";
+		status = "okay";
+	};
+};
+
+&pinctrl {
+	sdhc0_default: sdhc0_default {
+			group1 {
+				psels = <RTL87X3G_PSEL(HS_P2_3_SDH0_CLK, P2_3, DIR_IN, DRV_HIGH, PULL_UP)>,
+					<RTL87X3G_PSEL(HS_P2_4_SDH0_CMD, P2_4, DIR_IN, DRV_HIGH, PULL_UP)>,
+					<RTL87X3G_PSEL(HS_P2_5_SDH0_DATA0, P2_5, DIR_IN, DRV_HIGH, PULL_UP)>,
+					<RTL87X3G_PSEL(HS_P2_6_SDH0_DATA1, P2_6, DIR_IN, DRV_HIGH, PULL_UP)>,
+					<RTL87X3G_PSEL(HS_P2_7_SDH0_DATA2, P2_7, DIR_IN, DRV_HIGH, PULL_UP)>,
+					<RTL87X3G_PSEL(HS_P4_0_SDH0_DATA3, P4_0, DIR_IN, DRV_HIGH, PULL_UP)>;
+				bias-pull-strong;
+				current-level = <1>;
+			};
+		};
+};
+
+&gpioa {
+	status = "okay";
+};
